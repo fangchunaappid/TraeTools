@@ -141,6 +141,9 @@ public partial class MainViewModel : ViewModelBase
         CurrentPage = _dashboard;
         CurrentPageKey = "dashboard";
 
+        // 首次启动即按激活账号刷新仪表盘状态/积分/奖励（否则启动时只显示旧缓存，状态不更新）
+        _ = _dashboard.RefreshAllAsync();
+
         // 启动日志：记录账号概况，便于排查问题
         try
         {

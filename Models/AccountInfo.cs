@@ -1,3 +1,4 @@
+using System.Windows.Input;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -5,6 +6,8 @@ namespace TraeTools.Models;
 
 public partial class AccountInfo : ObservableObject
 {
+    /// <summary>账号概览卡片点击切换全局账号的命令（由 DashboardViewModel 注入）。</summary>
+    public ICommand? SelectCommand { get; set; }
     /// <summary>源账号 Id（用于 Token 面板联动定位真实账号）。</summary>
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
@@ -36,7 +39,9 @@ public partial class AccountInfo : ObservableObject
     public string CreatedAt { get; set; } = string.Empty;
     public int Carriers { get; set; }
     public string Similarity { get; set; } = string.Empty;
-    public bool IsCurrent { get; set; }
+    /// <summary>是否当前激活账号（账号概览/账号管理据此高亮框出当前账号，可观察以随切换实时刷新）。</summary>
+    [ObservableProperty]
+    private bool _isCurrent;
 
     public IBrush AvatarBrush
     {

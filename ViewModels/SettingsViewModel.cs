@@ -53,7 +53,32 @@ public partial class SettingsViewModel : ViewModelBase
     private bool _pushEnabled = true;
 
     [ObservableProperty]
-    private string _pushStatus = "就绪";
+    private string _pushStatus = "";
+
+    /// <summary>底部状态条是否显示（非空状态消息时才显示，消息自动消失后隐藏）。</summary>
+    [ObservableProperty]
+    private bool _showStatusBar;
+
+    private CancellationTokenSource? _statusClearCts;
+
+    /// <summary>状态消息自动消失：非空显示，5 秒后若无新消息则清空隐藏；新消息会重置计时。</summary>
+    partial void OnPushStatusChanged(string value)
+    {
+        ShowStatusBar = !string.IsNullOrEmpty(value);
+        _statusClearCts?.Cancel();
+        _statusClearCts = null;
+        if (string.IsNullOrEmpty(value)) return;
+        var cts = new CancellationTokenSource();
+        _statusClearCts = cts;
+        _ = AutoClearStatusAsync(cts.Token);
+    }
+
+    private async Task AutoClearStatusAsync(CancellationToken ct)
+    {
+        try { await Task.Delay(TimeSpan.FromSeconds(5), ct); }
+        catch (TaskCanceledException) { return; }
+        if (!ct.IsCancellationRequested) PushStatus = "";
+    }
 
     /// <summary>是否正在进行「检查更新」（防止并发下载/安装）。</summary>
     [ObservableProperty]
@@ -141,6 +166,9 @@ public partial class SettingsViewModel : ViewModelBase
                 var item = Accounts.FirstOrDefault(a => a.Id == acc.Id);
                 if (item == null) continue;
 
+                // 同步当前激活账号高亮（账号切换后实时框出）
+                item.IsCurrent = acc.Id == cfg.ActiveAccountId;
+
                 // 账号资料（昵称/脱敏手机号/学生认证）后台刷新并回填展示
                 await AccountHelpers.RefreshProfileAsync(acc);
                 item.MobileText = acc.MobileMasked ?? "";
@@ -213,14 +241,7 @@ public partial class SettingsViewModel : ViewModelBase
             {
                 TokenString = MaskToken(acc.Token);
                 TokenUpdateTime = acc.TokenUpdatedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "—";
-
-                // 切换全局激活账号（仪表盘/签到页读取 ActiveAccountId）
-                if (cfg!.ActiveAccountId != acc.Id)
-                {
-                    cfg.ActiveAccountId = acc.Id;
-                    try { cfg.Save(); } catch { /* 忽略 */ }
-                    MainViewModel.NotifyActiveAccountChanged();
-                }
+                // 设置页仅用于查看/编辑该账号，不再切换全局激活账号
             }
             else
             {
@@ -402,6 +423,8 @@ public partial class SettingsViewModel : ViewModelBase
                 await AccountHelpers.RefreshProfileAsync(acc, force: true);
                 PushStatus = "账号登录成功 ✓，Token 已保存";
                 PopulateAccounts();
+                // 新账号加入后让仪表盘/用量等全局页立即呈现新账号
+                MainViewModel.NotifyActiveAccountChanged();
             }
             else
             {
@@ -455,6 +478,8 @@ public partial class SettingsViewModel : ViewModelBase
                 TokenString = "（未登录或未添加账号）";
                 TokenUpdateTime = "—";
             }
+            // 账号增删影响全局账号与仪表盘/用量展示，触发统一刷新（不再通过选中切换）
+            MainViewModel.NotifyActiveAccountChanged();
         }
         catch (Exception ex)
         {

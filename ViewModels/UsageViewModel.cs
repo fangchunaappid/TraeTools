@@ -68,7 +68,7 @@ public partial class UsageViewModel : ViewModelBase
         Reload();
     }
 
-    /// <summary>账号切换/进入页面时同步展示（读本地，不主动拉接口）。</summary>
+    /// <summary>账号切换/进入页面时同步展示（读本地，不主动拉接口）。只跟随全局激活账号。</summary>
     public void Reload()
     {
         var cfg = MainViewModel.AppConfig;
