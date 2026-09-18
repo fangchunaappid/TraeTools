@@ -15,7 +15,7 @@ namespace TraeTools.ViewModels;
 public partial class CheckinViewModel : ViewModelBase
 {
     [ObservableProperty]
-    private string _todayReward = "+150";
+    private string _todayReward = "--";
 
     [ObservableProperty]
     private int _streakDays = 0;
@@ -33,7 +33,7 @@ public partial class CheckinViewModel : ViewModelBase
     private double _progressRatio = 0;
 
     [ObservableProperty]
-    private string _progressText = "0/30";
+    private string _progressText = $"0/{DateTime.DaysInMonth(DateTime.Today.Year, DateTime.Today.Month)}";
 
     [ObservableProperty]
     private string _statusMessage = "";
@@ -65,7 +65,6 @@ public partial class CheckinViewModel : ViewModelBase
                     IsMember = acc.IsMember;
                     MemberHint = acc.IsMember ? "会员：基础 150 + 连签 50" : "非会员：基础签到 150 积分";
                     MemberMultiplier = acc.IsMember ? "×1.33" : "×1.0";
-                    TodayReward = acc.IsMember ? "+200" : "+150";
                 }
             }
         }
@@ -120,10 +119,23 @@ public partial class CheckinViewModel : ViewModelBase
                   ?? cfg?.Accounts.FirstOrDefault();
         if (acc?.LastCheckinDate is DateTime lc) signed.Add(lc.Date);
         if (cfg?.LastCheckinDate is DateTime clc) signed.Add(clc.Date);
+
+        // 优先从 SQLite 读取
+        try
+        {
+            var dbDates = MainViewModel.CheckinDb?.GetSignedDates();
+            if (dbDates != null && dbDates.Count > 0)
+            {
+                foreach (var d in dbDates) signed.Add(d);
+                return signed;
+            }
+        }
+        catch { /* 数据库读取失败回退到文本文件 */ }
+
         foreach (var (date, line) in ReadAllHistory())
         {
             if (date == DateTime.MinValue) continue;
-            if (TryParseRecord(line, out var rec) && rec.Type == "签到失败") continue;   // 失败记录不算已签
+            if (TryParseRecord(line, out var rec) && rec.Type == "签到失败") continue;
             signed.Add(date);
         }
         return signed;
@@ -167,10 +179,32 @@ public partial class CheckinViewModel : ViewModelBase
         catch { /* 失败保持空日历 */ }
     }
 
-    /// <summary>读取签到历史列表（优先真实 history 文件；无真实数据时保持空列表）。</summary>
+    /// <summary>读取签到历史列表（优先 SQLite，回退文本文件；无数据时用示例）。</summary>
     private void LoadHistory()
     {
         Records.Clear();
+
+        // 优先从 SQLite 读取
+        try
+        {
+            var dbRecords = MainViewModel.CheckinDb?.GetRecords(limit: 50);
+            if (dbRecords != null && dbRecords.Count > 0)
+            {
+                foreach (var r in dbRecords)
+                {
+                    Records.Add(new CheckinRecord
+                    {
+                        Date = $"{r.Date} {r.Time}",
+                        Account = r.AccountName,
+                        Type = "每日签到",
+                        Result = $"+{(int)r.Credits}",
+                    });
+                }
+                return;
+            }
+        }
+        catch { /* 数据库读取失败回退到文本文件 */ }
+
         var all = ReadAllHistory().Where(r => r.Date != DateTime.MinValue).ToList();
         if (all.Count == 0) return;
         foreach (var (_, line) in all.Take(50))
@@ -477,7 +511,6 @@ public partial class CheckinViewModel : ViewModelBase
                 IsMember = acc.IsMember;
                 MemberHint = acc.IsMember ? "会员：基础 150 + 连签 50" : "非会员：基础签到 150 积分";
                 MemberMultiplier = acc.IsMember ? "×1.33" : "×1.0";
-                TodayReward = acc.IsMember ? "+200" : "+150";
                 StatusMessage = acc.LastCheckinDate.HasValue && acc.LastCheckinDate.Value.Date == DateTime.Today
                     ? "今日已签到"
                     : "";

@@ -8,9 +8,10 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyTitle>TraeTools</AssemblyTitle>
     <Product>TraeTools</Product>
-    <Version>1.0.2.0</Version>
-    <!-- 显示/发布版本号（tag v1.0.2.1 用运行时会话等其他展示），AssemblyVersion 保持 1.0.2.0 以便应用内更新判定 v1.0.2.1 为更新版 -->
-    <InformationalVersion>1.0.2.2</InformationalVersion>
+    <!-- 以下 Version/InformationalVersion 由 ReadVersionFromJson 目标在生成 AssemblyInfo 前从 version.json 自动读取并覆盖。
+         发版时只需修改 version.json，csproj 无需手工同步。 -->
+    <Version>1.0.0</Version>
+    <InformationalVersion>1.0.0</InformationalVersion>
     <NoWarn>CA1416;MSB3277</NoWarn>
   </PropertyGroup>
   <!-- 仅 LoginHostForm/WebViewLoginHost 用显式 using 引用 WinForms，全局 using 会造成与 Avalonia 命名冲突 -->
@@ -23,6 +24,23 @@
     <AvaloniaResource Include="Styles\**" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="version.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+  <!-- 从 version.json 自动同步 Version/InformationalVersion（生成 AssemblyInfo 前执行） -->
+  <Target Name="ReadVersionFromJson" BeforeTargets="GenerateAssemblyInfo;GenerateAssemblyInfoInternal">
+    <PropertyGroup>
+      <_VJsonContent>$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\version.json'))</_VJsonContent>
+      <_VJsonVer>$([System.Text.RegularExpressions.Regex]::Match('$(_VJsonContent)', '&quot;version&quot;\s*:\s*&quot;([^&quot;]+)&quot;').Groups[1].Value)</_VJsonVer>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(_VJsonVer)' != ''">
+      <Version>$(_VJsonVer)</Version>
+      <InformationalVersion>$(_VJsonVer)</InformationalVersion>
+    </PropertyGroup>
+    <Message Text="Version read from version.json: $(_VJsonVer) (applied to Version/InformationalVersion)" Importance="high" />
+  </Target>
+  <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.1.2" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.2" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.2" />
@@ -32,6 +50,7 @@
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.*" />
     <PackageReference Include="Sodium.Core" Version="1.4.1" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
   </ItemGroup>

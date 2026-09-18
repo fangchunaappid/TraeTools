@@ -18,19 +18,19 @@ public partial class DashboardViewModel : ViewModelBase
     public record TrendPoint(string DateLabel, double Credits, double X, double Y, string Tooltip);
 
     [ObservableProperty]
-    private int _remainingCredits = 1648;
+    private int _remainingCredits = 0;
 
     [ObservableProperty]
-    private string _todayReward = "+150";
+    private string _todayReward = "--";
 
     [ObservableProperty]
-    private string _checkinStatus = "已完成 ✓";
+    private string _checkinStatus = "--";
 
     [ObservableProperty]
-    private int _streakDays = 23;
+    private int _streakDays = 0;
 
     [ObservableProperty]
-    private bool _isMember = true;
+    private bool _isMember = false;
 
     [ObservableProperty]
     private string _currentAccount = "未添加账号";
@@ -61,10 +61,9 @@ public partial class DashboardViewModel : ViewModelBase
     [ObservableProperty]
     private int _chartYMin = 0;
 
-    /// <summary>总积分历史文件（%APPDATA%\TraeCheckin\credits_total_&lt;accId&gt;.txt，逐账号独立）。</summary>
+    /// <summary>总积分历史文件（%APPDATA%\TraeTools\data\credits_total_&lt;accId&gt;.txt，逐账号独立）。</summary>
     private static string TotalHistoryPathFor(string accountId)
-        => System.IO.Path.Combine(
-            TraeTools.Services.DataPaths.Root, $"credits_total_{accountId}.txt");
+        => System.IO.Path.Combine(TraeTools.Services.DataPaths.DataDir, $"credits_total_{accountId}.txt");
 
     /// <summary>读取某账号总积分历史（按日期升序；文件格式 yyyy-MM-dd,total）。</summary>
     private static List<(DateTime Date, double Total)> ReadTotalHistory(string accountId)
@@ -85,10 +84,17 @@ public partial class DashboardViewModel : ViewModelBase
         return list.OrderBy(x => x.Date).ToList();
     }
 
-    /// <summary>当天无记录时追加当前总积分（对齐源：每天记录一次当前总积分）。</summary>
+    /// <summary>当天无记录时追加当前总积分（同时写入 SQLite 与旧版文本文件）。</summary>
     private static void AppendTotalToday(TraeCheckin.TraeAccount acc, double total)
     {
         if (total < 0) return;
+        // 写入 SQLite（ON CONFLICT 自动去重）
+        try
+        {
+            MainViewModel.CheckinDb?.InsertSnapshot(acc.Id, total);
+        }
+        catch { /* 数据库写入失败不影响 */ }
+        // 同时写入旧版文本文件（保持兼容）
         try
         {
             var history = ReadTotalHistory(acc.Id);
@@ -103,7 +109,24 @@ public partial class DashboardViewModel : ViewModelBase
     /// <summary>从该账号真实总积分历史重建曲线（近 N 天），并更新 Y 轴刻度。</summary>
     private void BuildChartFromHistory(string accountId)
     {
-        var history = ReadTotalHistory(accountId);
+        // 优先从 SQLite 读取趋势数据
+        List<(DateTime Date, double Remaining)> dbTrend = new();
+        try
+        {
+            dbTrend = MainViewModel.CheckinDb?.GetSnapshotTrend(accountId, 14) ?? new();
+        }
+        catch { /* 数据库读取失败回退到文本文件 */ }
+
+        List<(DateTime Date, double Total)> history;
+        if (dbTrend.Count > 0)
+        {
+            history = dbTrend.Select(t => (t.Date, t.Remaining)).ToList();
+        }
+        else
+        {
+            history = ReadTotalHistory(accountId);
+        }
+
         if (history.Count == 0)
         {
             // 无历史：退化为单日当前积分 mock（避免空图）
@@ -189,26 +212,26 @@ public partial class DashboardViewModel : ViewModelBase
                 {
                     CurrentAccount = string.IsNullOrEmpty(acc.Name) ? $"账号@{(acc.AccountUid ?? acc.Id.Substring(0, 6))}" : acc.Name;
                     IsMember = acc.IsMember;
-                    // 非会员 150，会员 150 + 50
-                    TodayReward = acc.IsMember ? "+200" : "+150";
                 }
             }
             catch { /* 保留 mock 默认值 */ }
         }
 
-        // 趋势数据：优先读取激活账号的真实总积分历史，无历史则用模拟值兜底
+        // 趋势数据：优先读取激活账号的真实总积分历史，无账号或无历史时不生成模拟曲线
         var app = MainViewModel.AppConfig;
         var active = app?.Accounts.FirstOrDefault(a => a.Id == app.ActiveAccountId) ?? app?.Accounts.FirstOrDefault();
         if (active != null)
-            BuildChartFromHistory(active.Id);
-        if (TrendPoints.Count == 0)
         {
-            var values = GenerateTrendValues();
-            LinePoints = ComputeLinePoints(values);
-            FillGeometry = ComputeFillGeometry(values);
-            TodayX = LinePoints[LinePoints.Count - 1].X - 6;
-            TodayY = LinePoints[LinePoints.Count - 1].Y - 6;
-            BuildTrendPointsAndLabels(values);
+            BuildChartFromHistory(active.Id);
+            if (TrendPoints.Count == 0)
+            {
+                var values = GenerateTrendValues();
+                LinePoints = ComputeLinePoints(values);
+                FillGeometry = ComputeFillGeometry(values);
+                TodayX = LinePoints[LinePoints.Count - 1].X - 6;
+                TodayY = LinePoints[LinePoints.Count - 1].Y - 6;
+                BuildTrendPointsAndLabels(values);
+            }
         }
     }
 
@@ -460,7 +483,6 @@ public partial class DashboardViewModel : ViewModelBase
             if (acc == null) return;
             CurrentAccount = string.IsNullOrEmpty(acc.Name) ? $"账号@{(acc.AccountUid ?? acc.Id.Substring(0, 6))}" : acc.Name;
             IsMember = acc.IsMember;
-            TodayReward = acc.IsMember ? "+200" : "+150";
             Accounts.Clear();
             PopulateAccounts();
         }

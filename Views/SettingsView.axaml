@@ -200,6 +200,8 @@
                             </StackPanel>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                 <Button Classes="btn" Content="重置协议" Command="{Binding ResetAgreementCommand}" />
+                                <Button Classes="btn" Content="重置软件" Command="{Binding ResetSoftwareCommand}"
+                                        Foreground="#FFEF4444" />
                                 <Button Classes="btn" Content="检查更新" Command="{Binding CheckUpdateCommand}" />
                             </StackPanel>
                         </Grid>

@@ -71,7 +71,7 @@ public partial class SettingsViewModel : ViewModelBase
     public string OriginalRepoUrl => "https://github.com/star620/TraeTools";
     public string ForkRepoUrl => "https://github.com/star620/TraeTools";
     public string IssuesUrl => "https://github.com/star620/TraeTools/issues";
-    public string AppVersion => "v1.0.0";
+    public string AppVersion => TraeTools.Services.AppVersion.Display;
 
     public SettingsViewModel()
     {
@@ -536,6 +536,71 @@ public partial class SettingsViewModel : ViewModelBase
         PushStatus = "已重置用户协议，即将退出…";
         await Task.Delay(300);
         Environment.Exit(0);
+    }
+
+    /// <summary>
+    /// 重置软件：清空所有账号、签到历史、日志、数据库、配置等用户数据，恢复到初始安装状态。
+    /// 需要两次确认以防止误操作。
+    /// </summary>
+    [RelayCommand]
+    private async Task ResetSoftware()
+    {
+        var owner = UiHost.MainWindow;
+
+        // ---- 第一次确认：告知影响范围 ----
+        var ask1 = new PromptWindow(
+            "重置软件",
+            "此操作将永久删除以下所有数据：\n\n" +
+            "  · 全部账号及登录凭证（Token / Session）\n" +
+            "  · 签到历史记录与数据库\n" +
+            "  · 用量统计记录\n" +
+            "  · 所有调试日志\n" +
+            "  · 账号切换配置与登录态备份\n" +
+            "  · 所有个性化设置\n\n" +
+            "重置后软件将退出，重新启动后回到初始状态。\n\n确定要继续吗？",
+            "继续", "取消");
+        bool go1 = owner != null ? await ask1.ShowDialog<bool>(owner) : false;
+        if (!go1) { PushStatus = "已取消重置"; return; }
+
+        // ---- 第二次确认：最终警告 ----
+        var ask2 = new PromptWindow(
+            "最终确认",
+            "最后警告：此操作不可撤销！\n\n所有账号数据、签到记录、设置将被永久删除。\n\n确认执行重置？",
+            "确认重置", "取消");
+        bool go2 = owner != null ? await ask2.ShowDialog<bool>(owner) : false;
+        if (!go2) { PushStatus = "已取消重置"; return; }
+
+        // ---- 执行清理 ----
+        PushStatus = "正在重置…";
+        try
+        {
+            // 关闭数据库连接
+            try { MainViewModel.CheckinDb?.Dispose(); } catch { /* 忽略 */ }
+
+            var root = DataPaths.Root;
+
+            // 删除整个数据根目录
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+
+            // 删除 LocalAppData 下的缓存目录
+            var localRoot = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TraeTools");
+            if (Directory.Exists(localRoot))
+            {
+                try { Directory.Delete(localRoot, recursive: true); } catch { /* 忽略 */ }
+            }
+
+            PushStatus = "重置完成，即将退出…";
+            await Task.Delay(500);
+            Environment.Exit(0);
+        }
+        catch (Exception ex)
+        {
+            PushStatus = "重置失败：" + ex.Message;
+        }
     }
 
     /// <summary>

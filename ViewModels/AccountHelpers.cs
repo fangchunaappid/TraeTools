@@ -152,13 +152,18 @@ public static class AccountHelpers
     private static readonly object ProfileCacheLock = new();
     private static readonly Dictionary<string, ProfileCacheEntry> ProfileCache = new(StringComparer.Ordinal);
 
-    // ==================== 签到历史统一落盘 ====================
+    // ==================== 数据存储目录（统一走 DataPaths）====================
 
-    /// <summary>历史文件目录的唯一真源（签到页/各入口共用）。</summary>
     internal static readonly object HistoryIoLock = new();
 
-    /// <summary>历史文件目录的唯一真源（%APPDATA%\TraeCheckin）。</summary>
-    internal static string HistoryDir => TraeTools.Services.DataPaths.HistoryDir;
+    /// <summary>数据目录（数据库、签到历史、用量等），统一走 DataPaths.DataDir。</summary>
+    internal static string DataDir => TraeTools.Services.DataPaths.DataDir;
+
+    /// <summary>日志目录（各模块调试日志），统一走 DataPaths.LogsDir。</summary>
+    internal static string LogsDir => TraeTools.Services.DataPaths.LogsDir;
+
+    /// <summary>兼容旧名，指向 DataDir。</summary>
+    internal static string HistoryDir => DataDir;
 
     private static bool _legacyHistoryCleaned;
 
@@ -189,18 +194,26 @@ public static class AccountHelpers
     }
 
     /// <summary>
-    /// 追加一条签到成功历史（供日历/连签/记录列表展示）。
-    /// 失败详情已统一由 checkin_log 承担，history 只保留成功记录，保持干净。
+    /// 记录一次签到成功（同时写入 SQLite 数据库与旧版 history 文本文件保持兼容）。
     /// </summary>
     public static void AppendHistory(TraeCheckin.TraeAccount acc, double gained)
     {
+        var name = string.IsNullOrEmpty(acc.Name) ? (acc.Id.Length > 6 ? acc.Id[..6] : acc.Id) : acc.Name;
+
+        // 写入 SQLite
+        try
+        {
+            MainViewModel.CheckinDb?.InsertCheckin(DateTime.Now, acc.Id, name, gained, acc.IsMember);
+        }
+        catch { /* 数据库写入失败不影响签到 */ }
+
+        // 同时写入旧版文本文件（保持兼容，后续版本可移除）
         try
         {
             lock (HistoryIoLock)
             {
                 Directory.CreateDirectory(HistoryDir);
                 var historyFile = Path.Combine(HistoryDir, $"history_{DateTime.Now:yyyyMM}.txt");
-                var name = string.IsNullOrEmpty(acc.Name) ? (acc.Id.Length > 6 ? acc.Id[..6] : acc.Id) : acc.Name;
                 var line = $"{DateTime.Now:yyyy-MM-dd HH:mm} | {name} | 每日签到 | +{(int)gained}";
                 File.AppendAllText(historyFile, line + Environment.NewLine);
             }
@@ -223,8 +236,7 @@ public static class AccountHelpers
         {
             lock (LogLock)
             {
-                Directory.CreateDirectory(HistoryDir);
-                var logFile = Path.Combine(HistoryDir, $"{category}_log_{DateTime.Now:yyyyMM}.txt");
+                var logFile = Path.Combine(LogsDir, $"{category}_log_{DateTime.Now:yyyyMM}.txt");
                 var name = string.IsNullOrEmpty(accountName) ? "?" : accountName;
                 File.AppendAllText(logFile, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{name}] {message}{Environment.NewLine}");
             }

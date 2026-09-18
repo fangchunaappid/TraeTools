@@ -2,12 +2,14 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace TraeCheckin;
 
 /// <summary>
 /// 签到状态响应（/trae/api/v2/ug/checkin_credits/status）
 /// </summary>
+[JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
 public class CheckinStatus
 {
     public bool enable { get; set; }
@@ -123,17 +125,17 @@ public class TraeApiClient
                     double limit = 0;
                     if (p.TryGetProperty("entitlement_base_info", out var info) &&
                         info.TryGetProperty("quota", out var quota) &&
-                        quota.TryGetProperty("credits_limit", out var cl) &&
-                        cl.ValueKind == JsonValueKind.Number)
+                        quota.TryGetProperty("credits_limit", out var cl))
                     {
-                        limit = cl.GetDouble();
+                        if (cl.ValueKind == JsonValueKind.Number) limit = cl.GetDouble();
+                        else if (cl.ValueKind == JsonValueKind.String) double.TryParse(cl.GetString(), out limit);
                     }
                     double used = 0;
                     if (p.TryGetProperty("usage", out var usage) &&
-                        usage.TryGetProperty("credits_amount", out var ua) &&
-                        ua.ValueKind == JsonValueKind.Number)
+                        usage.TryGetProperty("credits_amount", out var ua))
                     {
-                        used = ua.GetDouble();
+                        if (ua.ValueKind == JsonValueKind.Number) used = ua.GetDouble();
+                        else if (ua.ValueKind == JsonValueKind.String) double.TryParse(ua.GetString(), out used);
                     }
                     var rem = limit - used;
                     if (rem < 0) rem = 0;

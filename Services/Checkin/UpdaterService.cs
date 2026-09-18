@@ -23,9 +23,21 @@ public static class UpdaterService
         return h;
     }
 
-    /// <summary>运行中程序的版本号（来自程序集，跟随 csproj &lt;Version&gt;）。</summary>
+    /// <summary>运行中程序的版本号。统一从 AppVersion（version.json 优先，InformationalVersion 兜底）读取，
+    /// 与"关于"页展示保持同源，避免出现"显示 v1.0.2.2 / 却判 v1.0.2.0 为旧"的错位。</summary>
     public static Version CurrentVersion
-        => Assembly.GetEntryAssembly()?.GetName().Version ?? new Version(1, 0, 0);
+    {
+        get
+        {
+            var v = AppVersion.Version?.Trim() ?? "";
+            // GitHub tag 常见形态："v1.0.2.2" / "1.0.2.2" / "1.0.2.2-beta"。先把前导 v 去掉。
+            if (v.Length > 0 && (v[0] == 'v' || v[0] == 'V')) v = v[1..];
+            // 仅取主版本号段（-xxx 后缀截断）
+            var dash = v.IndexOfAny(new[] { '-', '+' });
+            if (dash >= 0) v = v[..dash];
+            return Version.TryParse(v, out var ver) ? ver : new Version(1, 0, 0);
+        }
+    }
 
     public sealed record ReleaseInfo(string Tag, Version Version, string ExeUrl, long Size);
 

@@ -86,6 +86,8 @@ public partial class MainWindow : Window
                 Menu = menu,
                 IsVisible = true
             };
+            // 左键单击托盘图标 → 显示/激活主窗口
+            _trayIcon.Clicked += (_, _) => ShowAndActivate();
         }
         catch
         {

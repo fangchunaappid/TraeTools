@@ -63,7 +63,7 @@ public sealed class TraeUsageClient
                 LastError = "响应缺少 total 字段（可能接口失效/风控）";
                 return result;
             }
-            result.Total = totalEl.TryGetInt32(out var t) ? t : 0;
+            result.Total = GetInt(totalEl);
 
             if (!doc.RootElement.TryGetProperty("user_usage_group_by_sessions", out var arr) ||
                 arr.ValueKind != JsonValueKind.Array)
@@ -189,10 +189,27 @@ public sealed class TraeUsageClient
         => el.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
 
     private static long GetLong(JsonElement el, string name)
-        => el.TryGetProperty(name, out var v) && v.TryGetInt64(out var l) ? l : 0;
+    {
+        if (!el.TryGetProperty(name, out var v)) return 0;
+        if (v.ValueKind == JsonValueKind.Number && v.TryGetInt64(out var l)) return l;
+        if (v.ValueKind == JsonValueKind.String && long.TryParse(v.GetString(), out var l2)) return l2;
+        return 0;
+    }
 
     private static double GetDouble(JsonElement el, string name, double def = 0)
-        => el.TryGetProperty(name, out var v) && v.TryGetDouble(out var d) ? d : def;
+    {
+        if (!el.TryGetProperty(name, out var v)) return def;
+        if (v.ValueKind == JsonValueKind.Number && v.TryGetDouble(out var d)) return d;
+        if (v.ValueKind == JsonValueKind.String && double.TryParse(v.GetString(), out var d2)) return d2;
+        return def;
+    }
+
+    private static int GetInt(JsonElement el)
+    {
+        if (el.ValueKind == JsonValueKind.Number && el.TryGetInt32(out var i)) return i;
+        if (el.ValueKind == JsonValueKind.String && int.TryParse(el.GetString(), out var i2)) return i2;
+        return 0;
+    }
 
     private static bool GetBool(JsonElement el, string name, bool def)
     {
