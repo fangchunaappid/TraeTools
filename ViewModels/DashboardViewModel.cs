@@ -15,7 +15,13 @@ namespace TraeTools.ViewModels;
 
 public partial class DashboardViewModel : ViewModelBase
 {
-    public record TrendPoint(string DateLabel, double Credits, double X, double Y, string Tooltip);
+    public record TrendPoint(string DateLabel, double Credits, double X, double Y, string Tooltip)
+{
+    /// <summary>悬浮命中区宽度（=相邻点间距，用于连续覆盖无缝隙）。</summary>
+    public double StepWidth { get; set; }
+    /// <summary>是否为当前悬浮命中的点（高亮参考线用）。</summary>
+    public bool IsHovered { get; set; }
+}
 
     [ObservableProperty]
     private int _remainingCredits = 0;
@@ -66,13 +72,40 @@ public partial class DashboardViewModel : ViewModelBase
 
     public ObservableCollection<AccountInfo> Accounts { get; } = new();
 
-    public IList<Point> LinePoints { get; private set; } = new List<Point>();
-    public Geometry FillGeometry { get; private set; } = new StreamGeometry();
-    public double TodayX { get; private set; }
-    public double TodayY { get; private set; }
+    private IList<Point> _linePoints = new List<Point>();
+    /// <summary>趋势折线坐标（重建时带变更通知，否则切换账号后折线不刷新）。</summary>
+    public IList<Point> LinePoints { get => _linePoints; private set => SetProperty(ref _linePoints, value); }
+
+    private Geometry _fillGeometry = new StreamGeometry();
+    public Geometry FillGeometry { get => _fillGeometry; private set => SetProperty(ref _fillGeometry, value); }
+
+    private double _todayX;
+    public double TodayX { get => _todayX; private set => SetProperty(ref _todayX, value); }
+
+    private double _todayY;
+    public double TodayY { get => _todayY; private set => SetProperty(ref _todayY, value); }
 
     public ObservableCollection<TrendPoint> TrendPoints { get; } = new();
     public ObservableCollection<string> XAxisLabels { get; } = new();
+
+    /// <summary>趋势点横向间距（用于悬浮命中区连续覆盖，避免悬停漏触发）。</summary>
+    public double TrendStepX { get; private set; } = 40;
+
+    /// <summary>当前悬浮命中的趋势点（即时展示冒泡，替代有延迟的原生 ToolTip）。</summary>
+    [ObservableProperty]
+    private TrendPoint? _trendHover;
+
+    [ObservableProperty]
+    private bool _trendHoverVisible;
+
+    /// <summary>即时悬浮：命中设置/移开清除。</summary>
+    public void SetTrendHover(TrendPoint? p)
+    {
+        if (TrendHover is { } prev && !ReferenceEquals(prev, p)) prev.IsHovered = false;
+        if (p is not null) p.IsHovered = true;
+        TrendHover = p;
+        TrendHoverVisible = p != null;
+    }
 
     public const double ChartWidth = 520;
     public const double ChartHeight = 200;
@@ -180,6 +213,7 @@ public partial class DashboardViewModel : ViewModelBase
         TrendPoints.Clear();
         const double pad = 12;
         double stepX = values.Length > 1 ? (ChartWidth - 2 * pad) / (values.Length - 1) : 0;
+        TrendStepX = stepX > 0 ? stepX : ChartWidth;
         double min = values.Min();
         double max = values.Max();
         double range = 1.0 * (max - min == 0 ? 1 : max - min);
@@ -188,7 +222,7 @@ public partial class DashboardViewModel : ViewModelBase
             double x = pad + i * stepX;
             double y = pad + (ChartHeight - 2 * pad) * (1 - (values[i] - min) / range);
             TrendPoints.Add(new TrendPoint(recent[i].Date.ToString("M/d"), values[i], x, y,
-                $"{recent[i].Date:yyyy-MM-dd}\n积分：{(int)values[i]}"));
+                $"{recent[i].Date:yyyy-MM-dd}\n积分：{(int)values[i]}") { StepWidth = TrendStepX });
         }
         XAxisLabels.Clear();
         int labelCount = Math.Max(1, Math.Min(8, recent.Count));
@@ -360,6 +394,7 @@ public partial class DashboardViewModel : ViewModelBase
     {
         const double pad = 12;
         double stepX = (ChartWidth - 2 * pad) / (values.Length - 1);
+        TrendStepX = stepX > 0 ? stepX : ChartWidth;
         double min = values.Min();
         double max = values.Max();
 
@@ -370,7 +405,7 @@ public partial class DashboardViewModel : ViewModelBase
             var date = DateTime.Today.AddDays(i - (values.Length - 1));
             string dateLabel = date.ToString("M/d");
             string tooltip = $"{date:yyyy-MM-dd}\n积分：{(int)values[i]}";
-            TrendPoints.Add(new TrendPoint(dateLabel, values[i], x, y, tooltip));
+            TrendPoints.Add(new TrendPoint(dateLabel, values[i], x, y, tooltip) { StepWidth = TrendStepX });
         }
 
         // X 轴标签：约 8 个均匀分布

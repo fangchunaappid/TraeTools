@@ -129,8 +129,8 @@
                                     <TextBlock Grid.Row="1" Text="{Binding ChartYMid}" FontSize="10" Foreground="{StaticResource TextSubBrush}" HorizontalAlignment="Left" VerticalAlignment="Center" />
                                     <TextBlock Grid.Row="2" Text="{Binding ChartYMin}" FontSize="10" Foreground="{StaticResource TextSubBrush}" HorizontalAlignment="Left" VerticalAlignment="Bottom" />
                                 </Grid>
-                                <Viewbox Grid.Column="1" Stretch="Fill" Height="200" HorizontalAlignment="Stretch">
-                            <Canvas Width="520" Height="200" Background="Transparent">
+                                <Viewbox Grid.Column="1" Stretch="Fill" Height="200" HorizontalAlignment="Stretch" ClipToBounds="False">
+                            <Canvas Width="520" Height="200" Background="Transparent" ClipToBounds="False">
                                 <!-- Grid lines -->
                                 <Line StartPoint="0,40" EndPoint="520,40" Stroke="#FFE2E8F0" StrokeThickness="1" />
                                 <Line StartPoint="0,100" EndPoint="520,100" Stroke="#FFE2E8F0" StrokeThickness="1" />
@@ -148,7 +148,7 @@
                                 <Polyline Points="{Binding LinePoints}" Stroke="{StaticResource AccentBrush}" StrokeThickness="2.5" StrokeJoin="Round" />
                                 <!-- Today marker -->
                                 <Ellipse Canvas.Left="{Binding TodayX}" Canvas.Top="{Binding TodayY}" Width="12" Height="12" Fill="White" Stroke="{StaticResource AccentBrush}" StrokeThickness="3" />
-                                <!-- Hover tooltip hit areas -->
+                                <!-- Hover hit areas: contiguous coverage（宽度=步长，无缝隙，即时触发） -->
                                 <ItemsControl ItemsSource="{Binding TrendPoints}" x:CompileBindings="False">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
@@ -162,14 +162,20 @@
                                     </ItemsControl.ItemContainerTheme>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Width="30" Height="200" Background="Transparent">
-                                                <ToolTip.Tip>
-                                                    <TextBlock Text="{Binding Tooltip}" FontSize="12" />
-                                                </ToolTip.Tip>
+                                            <Border Width="{Binding StepWidth}" Height="200" Background="Transparent"
+                                                    PointerEntered="TrendHoverEnter" PointerExited="TrendHoverExit">
+                                                <!-- 命中该点时竖直参考线 -->
+                                                <Border Width="1" Height="200" Background="#223B82F6" IsVisible="{Binding IsHovered}" HorizontalAlignment="Center" />
                                             </Border>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+                                <!-- 即时悬浮冒泡：显示命中日期与积分 -->
+                                <Border IsVisible="{Binding TrendHoverVisible}" Background="#FF1E293B" CornerRadius="6"
+                                        Padding="10,6" IsHitTestVisible="False"
+                                        Canvas.Left="{Binding TrendHover.X}" Canvas.Top="{Binding TrendHover.Y}" Margin="-40,-44,0,0">
+                                    <TextBlock Text="{Binding TrendHover.Tooltip}" FontSize="12" Foreground="White" TextAlignment="Center" />
+                                </Border>
                                 </Canvas>
                                 </Viewbox>
                             </Grid>
