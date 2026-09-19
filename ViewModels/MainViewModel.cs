@@ -34,6 +34,9 @@ public partial class MainViewModel : ViewModelBase
     public static GitHubApiClient? GitHubApi;
     public static CheckinDatabase? CheckinDb;
 
+    /// <summary>界面展示的应用版本号，与"关于/更新检查"（TraeTools.Services.AppVersion）同源。</summary>
+    public string AppVersion => Services.AppVersion.Display;
+
     public MainViewModel()
     {
         // 初始化真实服务（try-catch，失败则为 null，页面 VM 用 mock 兜底）

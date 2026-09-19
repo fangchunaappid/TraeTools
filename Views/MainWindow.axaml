@@ -78,8 +78,8 @@
                     </Button>
                 </StackPanel>
 
-                <!-- Version footer -->
-                <TextBlock Grid.Row="2" Text="TraeTools v1.0.0"
+                <!-- Version footer：动态展示版本，与"关于/更新检查"同源，避免写死导致错位 -->
+                <TextBlock Grid.Row="2" Text="{Binding AppVersion}"
                            Foreground="#64748B" FontSize="11"
                            Margin="20,12" />
             </Grid>
