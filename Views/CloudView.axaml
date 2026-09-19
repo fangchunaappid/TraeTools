@@ -12,7 +12,7 @@
     </Design.DataContext>
 
     <ScrollViewer Background="Transparent" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Spacing="20" Margin="0,0,14,0">
+        <StackPanel Spacing="14" Margin="0,0,14,0">
 
             <!-- ===== Header ===== -->
             <Grid ColumnDefinitions="*,Auto">
@@ -24,8 +24,8 @@
             </Grid>
 
             <!-- ===== 授权状态区 ===== -->
-            <Border Classes="card">
-                <StackPanel Spacing="10">
+            <Border Classes="card" Margin="0,10,0,0">
+                <StackPanel Spacing="8">
                     <Grid ColumnDefinitions="*,Auto">
                         <TextBlock Grid.Column="0" Text="GitHub 授权" Classes="card-title" VerticalAlignment="Center" />
                         <Button Grid.Column="1" Classes="btn" Content="粘贴 Token(PAT)" Command="{Binding UsePatCommand}"
@@ -37,8 +37,8 @@
             </Border>
 
             <!-- ===== 部署流程（纯状态展示，非可点操作卡） ===== -->
-            <Border Classes="card">
-                <StackPanel Spacing="12">
+            <Border Classes="card" Margin="0,10,0,0">
+                <StackPanel Spacing="10">
                     <Grid ColumnDefinitions="*,Auto">
                         <TextBlock Grid.Column="0" Text="部署流程" Classes="card-title" />
                         <TextBlock Grid.Column="1" Text="一键部署自动完成 · 仅状态展示" FontSize="11" Foreground="{StaticResource TextSubBrush}" />
@@ -70,8 +70,8 @@
             </Border>
 
             <!-- ===== Deploy Status ===== -->
-            <Border Classes="card">
-                <StackPanel Spacing="14">
+            <Border Classes="card" Margin="0,10,0,0">
+                <StackPanel Spacing="12">
                     <Grid ColumnDefinitions="*,Auto">
                         <TextBlock Grid.Column="0" Text="部署状态" Classes="card-title" />
                         <Button Grid.Column="1" Classes="btn-ghost" Content="打开 Actions" Command="{Binding OpenActionsCommand}" />
@@ -99,7 +99,7 @@
                         </StackPanel>
                     </Grid>
 
-                    <Border Background="#1AF59E0B" BorderBrush="{StaticResource WarningBrush}" BorderThickness="1" CornerRadius="10" Padding="14,10" Margin="0,6,0,0">
+                    <Border Background="#1AF59E0B" BorderBrush="{StaticResource WarningBrush}" BorderThickness="1" CornerRadius="10" Padding="14,10" Margin="0,4,0,0">
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <TextBlock Text="⚠" FontSize="16" Foreground="{StaticResource WarningBrush}" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding WarningText}" FontSize="12" Foreground="{StaticResource WarningBrush}" VerticalAlignment="Center" TextWrapping="Wrap" />
@@ -108,14 +108,14 @@
                 </StackPanel>
             </Border>
 
-            <!-- ===== Deploy Log（底部部署操作日志） ===== -->
-            <Border Classes="card">
-                <StackPanel Spacing="10">
+            <!-- ===== Deploy Log（底部部署操作日志，固定可观高度，内部自带滚动） ===== -->
+            <Border Classes="card" Margin="0,10,0,0">
+                <StackPanel Spacing="8">
                     <Grid ColumnDefinitions="*,Auto">
                         <TextBlock Grid.Column="0" Text="部署日志" Classes="card-title" />
                         <TextBlock Grid.Column="1" Text="操作明细" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
                     </Grid>
-                    <Border Classes="code-box" MinHeight="150">
+                    <Border Classes="code-box" MinHeight="140" MaxHeight="260">
                         <ScrollViewer>
                             <TextBlock Text="{Binding DeployLog}" Foreground="#22D3EE" FontSize="11" FontFamily="Consolas" TextWrapping="Wrap" />
                         </ScrollViewer>
@@ -126,9 +126,3 @@
         </StackPanel>
     </ScrollViewer>
 </UserControl>
-
-
-
-
-
-

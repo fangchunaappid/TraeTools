@@ -74,6 +74,8 @@
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
                     <Button Classes="btn" Content="刷新状态" Command="{Binding RefreshStatusCommand}" />
+                    <Button Classes="btn-danger" Content="重新登录" Command="{Binding ReloginCommand}"
+                        IsVisible="{Binding NeedLogin}" />
                     <Button Classes="btn-primary" Content="立即签到" Command="{Binding QuickCheckinCommand}"
                             IsEnabled="{Binding CanQuickCheckin}" />
                 </StackPanel>
@@ -164,8 +166,13 @@
                                         <DataTemplate>
                                             <Border Width="{Binding StepWidth}" Height="200" Background="Transparent"
                                                     PointerEntered="TrendHoverEnter" PointerExited="TrendHoverExit">
-                                                <!-- 命中该点时竖直参考线 -->
-                                                <Border Width="1" Height="200" Background="#223B82F6" IsVisible="{Binding IsHovered}" HorizontalAlignment="Center" />
+                                                <Canvas>
+                                                    <!-- 每个数据点一个可见圆点标记（相对 hit-area 原点居中，横坐标由外层 Canvas.Left 定位） -->
+                                                    <Ellipse Canvas.Left="0" Canvas.Top="{Binding Y}" Width="12" Height="12"
+                                                             Margin="-6,-6,0,0" Fill="White" Stroke="{StaticResource AccentBrush}" StrokeThickness="2.5" />
+                                                    <!-- 命中该点时竖直参考线 -->
+                                                    <Border Width="1" Height="200" Background="#223B82F6" IsVisible="{Binding IsHovered}" HorizontalAlignment="Center" />
+                                                </Canvas>
                                             </Border>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>

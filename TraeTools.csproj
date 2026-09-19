@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows</TargetFramework>
@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\avalonia-logo.ico</ApplicationIcon>
     <AssemblyTitle>TraeTools</AssemblyTitle>
     <Product>TraeTools</Product>
     <!-- 以下 Version/InformationalVersion 由 ReadVersionFromJson 目标在生成 AssemblyInfo 前从 version.json 自动读取并覆盖。
@@ -24,6 +25,9 @@
     <AvaloniaResource Include="Styles\**" />
   </ItemGroup>
   <ItemGroup>
+    <!-- version.json 内嵌为 exe 资源：保证单文件分发/发布时 exe 自带真实版本，无需外置文件同步 -->
+    <EmbeddedResource Include="version.json" />
+    <!-- 同时复制到输出目录（非单文件或调试时也可见），供无内嵌机制的旧流程回退 -->
     <None Include="version.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

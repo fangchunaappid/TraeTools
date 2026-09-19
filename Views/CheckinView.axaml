@@ -11,24 +11,24 @@
         <vm:CheckinViewModel />
     </Design.DataContext>
 
-    <ScrollViewer Background="Transparent" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Spacing="20" Margin="0,0,16,0">
+    <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="0,0,16,0">
 
             <!-- ===== Header ===== -->
-            <Grid ColumnDefinitions="*,Auto">
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
                 <StackPanel Grid.Column="0" Spacing="4">
                     <TextBlock Text="每日签到" Classes="page-title" />
                     <TextBlock Text="{Binding PageSubtitle}" Classes="page-subtitle" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
-                    <Button Classes="btn-primary" Content="一键签到" Command="{Binding DoCheckinCommand}" />
+                    <Button Classes="btn-primary" Content="{Binding CheckinButtonText}" Command="{Binding DoCheckinCommand}"
+                            IsEnabled="{Binding !CheckedInToday}" />
                 </StackPanel>
             </Grid>
 
             <!-- ===== 签到账号勾选（手动一键与自动签到共用同一勾选） ===== -->
-            <Border CornerRadius="10" Classes="card" Padding="14,12">
-                <StackPanel Spacing="8">
-                    <TextBlock Text="选择签到账号（自动签到与此一致）" FontSize="13" FontWeight="SemiBold" />
+            <Border Grid.Row="1" CornerRadius="10" Classes="card" Padding="14,10" Margin="0,14,0,0">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="选择签到账号（自动签到与此一致）" FontSize="12" FontWeight="SemiBold" />
                     <ItemsControl ItemsSource="{Binding CheckAccounts}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -37,7 +37,7 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <CheckBox Content="{Binding Display}" IsChecked="{Binding IsChecked}" Margin="0,2,16,2" />
+                                <CheckBox Content="{Binding Display}" IsChecked="{Binding IsChecked}" Margin="0,1,16,1" FontSize="12" />
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
@@ -45,7 +45,7 @@
             </Border>
 
             <!-- ===== Hero Card ===== -->
-            <Border CornerRadius="14" Padding="28,24">
+            <Border Grid.Row="2" CornerRadius="14" Padding="22,16" Margin="0,14,0,0">
                 <Border.Background>
                     <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
                         <GradientStop Color="#FF1E293B" Offset="0" />
@@ -53,41 +53,46 @@
                     </LinearGradientBrush>
                 </Border.Background>
                 <Grid ColumnDefinitions="*,Auto">
-                    <StackPanel Grid.Column="0" Spacing="10" VerticalAlignment="Center">
-                        <TextBlock Text="今日奖励" Foreground="#94A3B8" FontSize="13" />
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBlock Text="{Binding TodayReward}" Foreground="White" FontSize="38" FontWeight="Bold" />
-                            <TextBlock Text="积分" Foreground="#94A3B8" FontSize="14" VerticalAlignment="Bottom" Margin="0,0,0,8" />
-                        </StackPanel>
-                        <Border Background="#22FFFFFF" CornerRadius="999" Padding="10,3" HorizontalAlignment="Left">
-                            <TextBlock Text="{Binding MemberHint}" Foreground="#CBD5E1" FontSize="12" />
-                        </Border>
-                        <!-- 签到操作结果反馈 -->
-                        <TextBlock Text="{Binding StatusMessage}" FontSize="12" Foreground="#FF93C5FD"
-                                   TextWrapping="Wrap" MaxWidth="380" />
+                    <StackPanel Grid.Column="0" Spacing="4" VerticalAlignment="Center">
+                    <TextBlock Text="今日奖励" Foreground="#94A3B8" FontSize="12" />
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="{Binding TodayReward}" Foreground="White" FontSize="26" FontWeight="Bold" />
+                        <TextBlock Text="积分" Foreground="#94A3B8" FontSize="13" VerticalAlignment="Bottom" Margin="0,0,0,5" />
                     </StackPanel>
+                    <!-- 会员徽章 + 签到结果/今日已签 状态，合并到同一行居中展示 -->
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                                IsVisible="{Binding HasStatusMessage}">
+                        <Border Background="#22FFFFFF" CornerRadius="999" Padding="8,2" HorizontalAlignment="Left">
+                            <TextBlock Text="{Binding MemberHint}" Foreground="#CBD5E1" FontSize="11" />
+                        </Border>
+                        <TextBlock Text="{Binding StatusMessage}" FontSize="11" Foreground="#FF93C5FD"
+                                   TextWrapping="Wrap" VerticalAlignment="Center" />
+                    </StackPanel>
+                </StackPanel>
 
-                    <!-- Streak Progress Ring：圆环加大留出文本安全区，文字不压弧线 -->
-                    <Canvas Grid.Column="1" Width="120" Height="120" HorizontalAlignment="Right" VerticalAlignment="Center">
-                        <Ellipse Canvas.Left="16" Canvas.Top="16" Width="88" Height="88" Stroke="#33FFFFFF" StrokeThickness="8" />
-                        <Path Data="M 60,16 A 44,44 0 1 1 16.4,55.6" Stroke="White" StrokeThickness="8" StrokeLineCap="Round" />
-                        <StackPanel Canvas.Left="16" Canvas.Top="42" Width="88">
-                            <TextBlock Text="{Binding StreakDays}" Foreground="White" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center" />
-                            <TextBlock Text="连续天数" Foreground="#94A3B8" FontSize="11" HorizontalAlignment="Center" />
+                    <!-- Streak Progress Ring：圆环减小，与紧凑布局匹配 -->
+                    <Canvas Grid.Column="1" Width="96" Height="96" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Ellipse Canvas.Left="12" Canvas.Top="12" Width="72" Height="72" Stroke="#33FFFFFF" StrokeThickness="7" />
+                        <Path Data="M 48,12 A 36,36 0 1 1 13.1,45.6" Stroke="White" StrokeThickness="7" StrokeLineCap="Round" />
+                        <StackPanel Canvas.Left="12" Canvas.Top="34" Width="72">
+                            <TextBlock Text="{Binding StreakDays}" Foreground="White" FontSize="19" FontWeight="Bold" HorizontalAlignment="Center" />
+                            <TextBlock Text="连续天数" Foreground="#94A3B8" FontSize="10" HorizontalAlignment="Center" />
                         </StackPanel>
                     </Canvas>
                 </Grid>
             </Border>
 
-            <!-- ===== Calendar + Records ===== -->
-            <Grid ColumnDefinitions="1.4*,1*">
+            <!-- ===== Calendar + Records（占满剩余高度，内部各自滚动） ===== -->
+            <Grid Grid.Row="3" ColumnDefinitions="1.4*,1*" Margin="0,14,0,0">
                 <!-- Calendar -->
                 <Border Grid.Column="0" Classes="card" Margin="0,0,10,0">
-                    <StackPanel Spacing="14">
-                        <Grid ColumnDefinitions="*,Auto">
+                    <Grid RowDefinitions="Auto,*">
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
                             <TextBlock Grid.Column="0" Text="本月签到日历" Classes="card-title" />
                             <TextBlock Grid.Column="1" Text="{Binding MonthTitle}" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
                         </Grid>
+                        <ScrollViewer Grid.Row="1" Margin="0,10,0,0" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Spacing="12">
                         <Grid ColumnDefinitions="*,*,*,*,*,*,*" Margin="0,2">
                             <TextBlock Grid.Column="0" Text="日" FontSize="11" Foreground="{StaticResource TextSubBrush}" HorizontalAlignment="Center" />
                             <TextBlock Grid.Column="1" Text="一" FontSize="11" Foreground="{StaticResource TextSubBrush}" HorizontalAlignment="Center" />
@@ -100,7 +105,7 @@
                         <ItemsControl ItemsSource="{Binding CalendarDays}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
-                                    <WrapPanel />
+                                    <UniformGrid Columns="7" />
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
@@ -108,7 +113,10 @@
                                     <Border Width="38" Height="38" Margin="3,2" CornerRadius="9"
                                             Background="{Binding DayBgBrush}"
                                             BorderBrush="{Binding DayBorderBrush}"
-                                            BorderThickness="2">
+                                            BorderThickness="2"
+                                            ToolTip.Tip="{Binding ToolTipText}"
+                                            ToolTip.ShowDelay="250"
+                                            ToolTip.Placement="Bottom">
                                         <TextBlock Text="{Binding DisplayDay}" FontSize="12" Foreground="{Binding DayFgBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                     </Border>
                                 </DataTemplate>
@@ -132,13 +140,16 @@
                                 <TextBlock Text="未签" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
                             </StackPanel>
                         </StackPanel>
-                    </StackPanel>
+                        </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
                 </Border>
 
                 <!-- Records -->
                 <Border Grid.Column="1" Classes="card" Margin="10,0,0,0">
-                    <StackPanel Spacing="12">
-                        <TextBlock Text="签到记录" Classes="card-title" />
+                    <Grid RowDefinitions="Auto,*">
+                        <TextBlock Grid.Row="0" Text="签到记录" Classes="card-title" />
+                        <ScrollViewer Grid.Row="1" Margin="0,8,0,0" HorizontalScrollBarVisibility="Disabled">
                         <ItemsControl ItemsSource="{Binding Records}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -157,11 +168,11 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                    </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
                 </Border>
             </Grid>
-        </StackPanel>
-    </ScrollViewer>
+        </Grid>
 </UserControl>
 
 

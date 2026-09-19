@@ -19,15 +19,14 @@
             <Setter Property="BorderBrush" Value="{StaticResource BorderBrushKey}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="10" />
-            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="Padding" Value="10,6" />
         </Style>
     </UserControl.Styles>
 
-    <ScrollViewer Background="Transparent" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Spacing="20" Margin="0,0,14,0">
+    <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="0,0,14,0">
 
             <!-- ===== Header ===== -->
-            <Grid ColumnDefinitions="*,Auto">
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
                 <StackPanel Grid.Column="0" Spacing="4">
                     <TextBlock Text="用量统计" Classes="page-title" />
                     <TextBlock Text="{Binding CurrentAccount}" Classes="page-subtitle" />
@@ -41,7 +40,7 @@
             </Grid>
 
             <!-- ===== 汇总卡片 ===== -->
-            <Grid ColumnDefinitions="*,*,*,*" Margin="0,4,0,0">
+            <Grid Grid.Row="1" ColumnDefinitions="*,*,*,*" Margin="0,14,0,0">
                 <Border Grid.Column="0" Classes="card" Margin="0,0,10,0">
                     <StackPanel Spacing="8">
                         <TextBlock Text="记录会话" Classes="card-title" />
@@ -83,7 +82,7 @@
             </Grid>
 
             <!-- ===== 积分快过期提醒 ===== -->
-            <Border Classes="card" IsVisible="{Binding HasExpiring}">
+            <Border Grid.Row="2" Classes="card" IsVisible="{Binding HasExpiring}" Margin="0,14,0,0">
                 <StackPanel Spacing="10">
                     <Grid ColumnDefinitions="*,Auto">
                         <TextBlock Grid.Column="0" Text="积分快过期提醒" Classes="card-title" />
@@ -107,17 +106,17 @@
                 </StackPanel>
             </Border>
 
-            <!-- ===== 会话列表 + 模型分布 ===== -->
-            <Grid ColumnDefinitions="1.6*,1*">
+            <!-- ===== 会话列表 + 模型分布（占满剩余高度，内部各自滚动） ===== -->
+            <Grid Grid.Row="3" ColumnDefinitions="1.6*,1*" Margin="0,14,0,0">
                 <!-- 会话列表 -->
                 <Border Grid.Column="0" Classes="card" Margin="0,0,10,0">
-                    <StackPanel Spacing="10">
-                        <Grid ColumnDefinitions="*,Auto">
+                    <Grid RowDefinitions="Auto,*">
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
                             <TextBlock Grid.Column="0" Text="逐会话用量" Classes="card-title" />
                             <TextBlock Grid.Column="1" Text="最多展示 500 条，汇总按全部" FontSize="11" Foreground="{StaticResource TextSubBrush}" />
                         </Grid>
-                        <ListBox ItemsSource="{Binding Sessions}" Background="Transparent"
-                                 MaxHeight="520" Focusable="False"
+                        <ListBox Grid.Row="1" ItemsSource="{Binding Sessions}" Background="Transparent"
+                                 Focusable="False" Margin="0,6,0,0"
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                             <ListBox.Styles>
                                 <Style Selector="ListBoxItem">
@@ -136,7 +135,7 @@
                             <ListBox.ItemTemplate>
                                 <DataTemplate x:DataType="models:UsageSessionRecord">
                                     <Border Classes="usage-card">
-                                        <StackPanel Spacing="4">
+                                        <StackPanel Spacing="2">
                                             <Grid ColumnDefinitions="80,*,Auto">
                                                 <TextBlock Grid.Column="0" Text="{Binding TimeText}" FontSize="11" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
                                                 <TextBlock Grid.Column="1" Text="{Binding ModelText}" FontSize="13" FontWeight="SemiBold"
@@ -160,34 +159,35 @@
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
-                    </StackPanel>
+                    </Grid>
                 </Border>
 
                 <!-- 模型分布 -->
                 <Border Grid.Column="1" Classes="card" Margin="10,0,0,0">
-                    <StackPanel Spacing="10">
-                        <TextBlock Text="模型分布" Classes="card-title" />
-                        <ItemsControl ItemsSource="{Binding ModelStats}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="models:ModelUsageStat">
-                                    <Border Classes="usage-card" Margin="0,0,0,8">
-                                        <StackPanel Spacing="3">
-                                            <Grid ColumnDefinitions="*,Auto">
-                                                <TextBlock Grid.Column="0" Text="{Binding ModelName}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                                <TextBlock Grid.Column="1" Text="{Binding SessionCount, StringFormat={}{0} 次}" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
-                                            </Grid>
-                                            <TextBlock FontSize="11" Foreground="{StaticResource TextSubBrush}"
-                                                       Text="{Binding TokenBrief}" />
-                                            <TextBlock FontSize="11" Foreground="{StaticResource TextSubBrush}"
-                                                       Text="{Binding DetailText}" />
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
+                    <Grid RowDefinitions="Auto,*">
+                        <TextBlock Grid.Row="0" Text="模型分布" Classes="card-title" />
+                        <ScrollViewer Grid.Row="1" Margin="0,6,0,0" HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl ItemsSource="{Binding ModelStats}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="models:ModelUsageStat">
+                                            <Border Classes="usage-card" Margin="0,0,0,6">
+                                                <StackPanel Spacing="3">
+                                                    <Grid ColumnDefinitions="*,Auto">
+                                                        <TextBlock Grid.Column="0" Text="{Binding ModelName}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding SessionCount, StringFormat={}{0} 次}" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+                                                    </Grid>
+                                                    <TextBlock FontSize="11" Foreground="{StaticResource TextSubBrush}"
+                                                               Text="{Binding TokenBrief}" />
+                                                    <TextBlock FontSize="11" Foreground="{StaticResource TextSubBrush}"
+                                                               Text="{Binding DetailText}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
                 </Border>
             </Grid>
-        </StackPanel>
-    </ScrollViewer>
+        </Grid>
 </UserControl>
