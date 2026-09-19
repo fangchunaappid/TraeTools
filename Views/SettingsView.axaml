@@ -11,6 +11,15 @@
         <vm:SettingsViewModel />
     </Design.DataContext>
 
+    <UserControl.Styles>
+        <!-- 账号管理卡片：当前激活账号用高亮粗边框框出（与仪表盘账号概览一致） -->
+        <Style Selector="Border.acct-card.acct-active">
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="Background" Value="#1A3B82F6" />
+        </Style>
+    </UserControl.Styles>
+
     <Grid RowDefinitions="*,Auto">
 
         <!-- ===== Scrollable Content ===== -->
@@ -146,6 +155,7 @@
                                     <!-- 圆角卡片式账号行 -->
                                     <DataTemplate>
                                         <Border CornerRadius="10" Classes="acct-card"
+                                                Classes.acct-active="{Binding IsCurrent}"
                                                 Background="#FFF8FAFC" BorderBrush="#FFE2E8F0" BorderThickness="1"
                                                 Padding="10,8" Margin="2,4" HorizontalAlignment="Stretch">
                                             <Grid ColumnDefinitions="32,*,Auto">
@@ -275,8 +285,9 @@
             </StackPanel>
         </ScrollViewer>
 
-        <!-- ===== Bottom Status Bar（全局交互返回） ===== -->
-        <Border Grid.Row="1" Background="#FFFBF5EB" BorderBrush="#FFE7C99B" BorderThickness="1,0,0,0">
+        <!-- ===== Bottom Status Bar（全局交互返回，有消息时显示、自动消失） ===== -->
+        <Border Grid.Row="1" Background="#FFFBF5EB" BorderBrush="#FFE7C99B" BorderThickness="1,0,0,0"
+                IsVisible="{Binding ShowStatusBar}">
             <Grid ColumnDefinitions="Auto,*" Margin="24,10">
                 <Border Grid.Column="0" Width="9" Height="9" CornerRadius="5" Background="#FFF59E0B" VerticalAlignment="Center" />
                 <TextBlock Grid.Column="1" Text="{Binding PushStatus}" FontSize="12" Foreground="#FF92400E"

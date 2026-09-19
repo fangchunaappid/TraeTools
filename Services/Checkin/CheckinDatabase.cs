@@ -302,7 +302,9 @@ public class CheckinDatabase : IDisposable
                     if (!double.TryParse(creditsStr, out var credits) || credits <= 0) continue;
 
                     // 用 name 当 accountId（旧数据没有 accountId，用 name 去重）
-                    if (IsDuplicate(dt.ToString("yyyy-MM-dd"), dt.ToString("HH:mm"), name, credits))
+                    // 注意：真实签到行 account_id 是账号 Guid、account_name 是昵称，故须按「日期+昵称」判重，
+                    // 否则会与真实账号行重复导入（启动迁移每次都会重新加回）。
+                    if (NameExistsOnDate(dt.ToString("yyyy-MM-dd"), name))
                         continue;
 
                     InsertCheckin(dt, name, name, credits, false);
@@ -353,17 +355,16 @@ public class CheckinDatabase : IDisposable
         return imported;
     }
 
-    private bool IsDuplicate(string date, string time, string accountId, double credits)
+    /// <summary>判断某账号昵称在指定日期是否已有签到记录（避免旧文件以昵称当 id 与真实账号行重复导入）。</summary>
+    private bool NameExistsOnDate(string date, string accountName)
     {
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = """
             SELECT COUNT(*) FROM checkin_record
-            WHERE date = $date AND time = $time AND account_id = $accountId AND credits = $credits;
+            WHERE date = $date AND account_name = $accountName;
             """;
         cmd.Parameters.AddWithValue("$date", date);
-        cmd.Parameters.AddWithValue("$time", time);
-        cmd.Parameters.AddWithValue("$accountId", accountId);
-        cmd.Parameters.AddWithValue("$credits", credits);
+        cmd.Parameters.AddWithValue("$accountName", accountName);
         return (long)cmd.ExecuteScalar()! > 0;
     }
 
