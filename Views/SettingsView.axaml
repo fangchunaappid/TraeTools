@@ -93,6 +93,17 @@
                                 <TextBlock Text="更新时间：" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
                                 <TextBlock Text="{Binding TokenUpdateTime}" FontSize="11" Foreground="{StaticResource TextMainBrush}" FontFamily="Consolas" />
                             </StackPanel>
+                            <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+                                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                    <TextBlock Text="设备号：" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+                                    <TextBlock Text="{Binding DeviceIdText}" FontSize="11" Foreground="{StaticResource TextMainBrush}" FontFamily="Consolas"
+                                               TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Classes="btn" Content="更换" Padding="10,4" FontSize="11"
+                                        Command="{Binding RegenerateDeviceIdCommand}" />
+                            </Grid>
+                            <TextBlock Text="设备号被风控标记（签到 9074「参与用户太多」）时更换即可解除；云端签到需重新「云端部署」同步" FontSize="10"
+                                       Foreground="{StaticResource TextSubBrush}" TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>
                 </Grid>

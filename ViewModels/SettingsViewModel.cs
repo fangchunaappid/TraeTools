@@ -46,6 +46,10 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private string _tokenUpdateTime = "—";
 
+    /// <summary>选中账号的设备号（x-device-id，16 位数字；风控关键）。</summary>
+    [ObservableProperty]
+    private string _deviceIdText = "—";
+
     [ObservableProperty]
     private string _feishuWebhook = "";
 
@@ -241,15 +245,45 @@ public partial class SettingsViewModel : ViewModelBase
             {
                 TokenString = MaskToken(acc.Token);
                 TokenUpdateTime = acc.TokenUpdatedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "—";
+                DeviceIdText = acc.DeviceId;
                 // 设置页仅用于查看/编辑该账号，不再切换全局激活账号
             }
             else
             {
                 TokenString = "（无账号数据）";
                 TokenUpdateTime = "—";
+                DeviceIdText = "—";
             }
         }
         catch { /* 联动失败不影响 */ }
+    }
+
+    /// <summary>
+    /// 手动更换选中账号的设备号（生成全新 16 位数字）。
+    /// 设备号被 Trae 风控标记（签到返回 9074「参与用户太多」）时更换即可解除；
+    /// 更换后云端自动签到需重新「云端部署」以同步新设备号。
+    /// </summary>
+    [RelayCommand]
+    private void RegenerateDeviceId()
+    {
+        try
+        {
+            var cfg = MainViewModel.AppConfig;
+            var acc = cfg?.Accounts.FirstOrDefault(a => a.Id == SelectedAccount?.Id);
+            if (acc == null)
+            {
+                PushStatus = "请先选择账号";
+                return;
+            }
+            acc.DeviceId = Random.Shared.NextInt64(1_000_000_000_000_000L, 10_000_000_000_000_000L).ToString();
+            try { cfg?.Save(); } catch { /* 保存失败提示仍展示 */ }
+            DeviceIdText = acc.DeviceId;
+            PushStatus = $"已更换设备号：{acc.DeviceId}（本地生效；云端需重新部署同步）";
+        }
+        catch (Exception ex)
+        {
+            PushStatus = "更换失败：" + ex.Message;
+        }
     }
 
     private void PopulateAccounts()
