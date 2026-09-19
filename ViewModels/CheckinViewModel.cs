@@ -17,6 +17,15 @@ public partial class CheckinViewModel : ViewModelBase
     [ObservableProperty]
     private string _todayReward = "--";
 
+    /// <summary>今日是否已签到（驱动"今日已签到"强调与一键签到按钮禁用联动）。</summary>
+    [ObservableProperty]
+    private bool _checkedInToday;
+
+    /// <summary>一键签到按钮文案：今日已签则显示"今日已签到"。</summary>
+    public string CheckinButtonText => CheckedInToday ? "今日已签到 ✓" : "一键签到";
+
+    partial void OnCheckedInTodayChanged(bool value) => OnPropertyChanged(nameof(CheckinButtonText));
+
     [ObservableProperty]
     private int _streakDays = 0;
 
@@ -37,6 +46,11 @@ public partial class CheckinViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _statusMessage = "";
+
+    /// <summary>是否有状态消息需要显示（空则隐藏反馈区）。</summary>
+    public bool HasStatusMessage => !string.IsNullOrEmpty(StatusMessage);
+
+    partial void OnStatusMessageChanged(string value) => OnPropertyChanged(nameof(HasStatusMessage));
 
     /// <summary>标题副标题（动态日期）。</summary>
     [ObservableProperty]
@@ -72,6 +86,7 @@ public partial class CheckinViewModel : ViewModelBase
 
         // 真实接入：日历按当月实际签到日期构建，连签天数从历史计算
         AccountHelpers.CleanupLegacyHistoryFiles();   // 顺手清理旧版每账号历史文件（幂等）
+        RefreshTodayState();
         ReloadCalendar();
         LoadHistory();
     }
@@ -147,16 +162,44 @@ public partial class CheckinViewModel : ViewModelBase
         CalendarDays.Clear();
         try
         {
+            // 月首工作日偏移补位（周标头：日一...六；Sunday=0..Saturday=6），保证每月1号对齐正确星期列
+            var first = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+            for (int i = 0; i < (int)first.DayOfWeek; i++)
+                CalendarDays.Add(new CalendarDay { Day = 0, State = "blank" });
+
             var signed = CollectSignedDates();
+
+            // 当月签到记录按日期分组（用于悬浮提示：当日签到账号及积分）
+            var byDate = new Dictionary<DateTime, List<string>>();
+            try
+            {
+                var records = MainViewModel.CheckinDb?.GetRecords(DateTime.Today.Year, DateTime.Today.Month, 500) ?? new();
+                foreach (var r in records)
+                {
+                    if (DateTime.TryParse(r.Date, out var rd))
+                    {
+                        if (!byDate.TryGetValue(rd.Date, out var lst)) byDate[rd.Date] = lst = new();
+                        var name = string.IsNullOrEmpty(r.AccountName) ? "账号" : r.AccountName;
+                        lst.Add($"{name} +{(int)r.Credits}");
+                    }
+                }
+            }
+            catch { /* 悬浮数据失败不影响日历 */ }
+
             int days = DateTime.DaysInMonth(DateTime.Today.Year, DateTime.Today.Month);
             for (int day = 1; day <= days; day++)
             {
                 var d = new DateTime(DateTime.Today.Year, DateTime.Today.Month, day);
                 string state;
-                if (d.Date == DateTime.Today) state = "today";
-                else if (signed.Contains(d.Date)) state = "checked";
+                if (signed.Contains(d.Date)) state = "checked";          // 已签（含今日已签）→ 蓝色
+                else if (d.Date == DateTime.Today) state = "today";      // 今天未签 → 今日高亮
                 else state = "empty";
-                CalendarDays.Add(new CalendarDay { Day = day, State = state });
+                var item = new CalendarDay { Day = day, State = state, Date = d };
+                if (byDate.TryGetValue(d.Date, out var list) && list.Count > 0)
+                    item.ToolTipText = $"{d:yyyy-MM-dd}\n" + string.Join("\n", list);
+                else
+                    item.ToolTipText = signed.Contains(d.Date) ? $"{d:yyyy-MM-dd}\n已签到" : $"{d:yyyy-MM-dd}\n未签到";
+                CalendarDays.Add(item);
             }
 
             // 连签天数：从今天（或昨天）向前连续计数
@@ -276,7 +319,7 @@ public partial class CheckinViewModel : ViewModelBase
 
             RebuildCheckList();   // 勾选与账号保持同步（新增账号也能进入自动签到）
             var (any, results) = await CheckinAllAccountsAsync();
-            if (any) { StatusMessage = "自动签到完成 ✓"; ReloadCalendar(); }
+            if (any) { StatusMessage = "自动签到完成 ✓"; RefreshTodayState(); ReloadCalendar(); LoadHistory(); }
             if (results.Any(r => r.Ok)) await NotifyFeishuBatchAsync(results);   // 全失败不打扰
             return any;
         }
@@ -497,6 +540,35 @@ public partial class CheckinViewModel : ViewModelBase
     private void TryAppendHistory(TraeCheckin.TraeAccount acc, double gained)
         => AccountHelpers.AppendHistory(acc, gained);
 
+    /// <summary>今日奖励 + 今日已签状态：跨所有账号统计——任一账号未签即可一键签到，今日奖励为所有账号今日实际获得总积分。</summary>
+    private void RefreshTodayState()
+    {
+        try
+        {
+            var cfg = MainViewModel.AppConfig;
+            var accounts = cfg?.Accounts;
+            if (accounts == null || accounts.Count == 0)
+            {
+                TodayReward = "--";
+                CheckedInToday = false;
+                return;
+            }
+
+            // 一键签到 vs 今日已签：任一账号未签则允许点击（CheckedInToday=false）
+            bool allChecked = accounts.All(a => a.LastCheckinDate.HasValue && a.LastCheckinDate.Value.Date == DateTime.Today);
+            CheckedInToday = allChecked;
+
+            // 今日奖励：统计所有账号今日实际获得的总积分
+            double total = MainViewModel.CheckinDb?.GetTodayTotalCredits() ?? 0;
+            TodayReward = total > 0 ? "+" + (int)total : "--";
+        }
+        catch
+        {
+            TodayReward = "--";
+            CheckedInToday = false;
+        }
+    }
+
     /// <summary>账号切换联动：按新激活账号刷新会员/奖励/日历/记录。</summary>
     public void Reload()
     {
@@ -515,6 +587,7 @@ public partial class CheckinViewModel : ViewModelBase
                     ? "今日已签到"
                     : "";
             }
+            RefreshTodayState();
             ReloadCalendar();
             LoadHistory();
         }
@@ -584,6 +657,7 @@ public partial class CheckinViewModel : ViewModelBase
                 summary += "；失败：" + string.Join("、", fails.Select(f => $"{f.Name}：{f.Reason}"));
             StatusMessage = summary;
 
+            RefreshTodayState();
             ReloadCalendar();
             LoadHistory();
             if (results.Count > 0) await NotifyFeishuBatchAsync(results);

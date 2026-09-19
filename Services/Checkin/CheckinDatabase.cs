@@ -119,6 +119,45 @@ public class CheckinDatabase : IDisposable
         return result;
     }
 
+    /// <summary>获取今日某账号实际获得的积分（今日奖励展示用；无记录返回 0）。</summary>
+    public double GetTodayCredits(string accountId)
+    {
+        try
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT COALESCE(SUM(credits), 0)
+                FROM checkin_record
+                WHERE date = $today AND account_id = $accountId;
+                """;
+            cmd.Parameters.AddWithValue("$today", DateTime.Today.ToString("yyyy-MM-dd"));
+            cmd.Parameters.AddWithValue("$accountId", accountId);
+            var v = cmd.ExecuteScalar();
+            if (v == null || v == DBNull.Value) return 0;
+            return Convert.ToDouble(v);
+        }
+        catch { return 0; }
+    }
+
+    /// <summary>获取今日所有账号实际获得的总积分（今日奖励统计用；无记录返回 0）。</summary>
+    public double GetTodayTotalCredits()
+    {
+        try
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT COALESCE(SUM(credits), 0)
+                FROM checkin_record
+                WHERE date = $today;
+                """;
+            cmd.Parameters.AddWithValue("$today", DateTime.Today.ToString("yyyy-MM-dd"));
+            var v = cmd.ExecuteScalar();
+            if (v == null || v == DBNull.Value) return 0;
+            return Convert.ToDouble(v);
+        }
+        catch { return 0; }
+    }
+
     /// <summary>获取某月签到记录（日历/记录列表用），按时间倒序。</summary>
     public List<CheckinRecordDto> GetRecords(int? year = null, int? month = null, int limit = 50)
     {

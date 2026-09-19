@@ -123,6 +123,7 @@ public class CalendarDay
                 "checked" => new SolidColorBrush(Avalonia.Media.Color.FromRgb(0x3B, 0x82, 0xF6)),
                 "missed" => new SolidColorBrush(Avalonia.Media.Color.FromRgb(0xEF, 0x44, 0x44)),
                 "today" => new SolidColorBrush(0xFFFFFFFF),
+                "blank" => Brushes.Transparent,
                 _ => new SolidColorBrush(Avalonia.Media.Color.FromRgb(0xF1, 0xF5, 0xF9))
             };
         }
@@ -136,6 +137,7 @@ public class CalendarDay
                 "checked" => new SolidColorBrush(0xFFFFFFFF),
                 "missed" => new SolidColorBrush(0xFFFFFFFF),
                 "today" => new SolidColorBrush(Avalonia.Media.Color.FromRgb(0x3B, 0x82, 0xF6)),
+                "blank" => Brushes.Transparent,
                 _ => new SolidColorBrush(Avalonia.Media.Color.FromRgb(0x94, 0xA3, 0xB8))
             };
         }
@@ -144,6 +146,12 @@ public class CalendarDay
         ? new SolidColorBrush(Avalonia.Media.Color.FromRgb(0x3B, 0x82, 0xF6))
         : new SolidColorBrush(0x00FFFFFF);
     public string DisplayDay => Day == 0 ? "" : Day.ToString();
+
+    /// <summary>该格对应日期（blank 无）。</summary>
+    public DateTime? Date { get; set; }
+
+    /// <summary>悬浮提示：当天签到账号及积分情况。</summary>
+    public string ToolTipText { get; set; } = "";
 }
 
 public class SwitchStep

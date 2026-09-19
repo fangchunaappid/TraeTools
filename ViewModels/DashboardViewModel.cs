@@ -32,6 +32,10 @@ public partial class DashboardViewModel : ViewModelBase
     [ObservableProperty]
     private string _checkinStatus = "--";
 
+    /// <summary>是否需要重新登录（CheckinStatus 为"需重登"或"未登录"时显示重新登录入口）。</summary>
+    [ObservableProperty]
+    private bool _needLogin;
+
     [ObservableProperty]
     private int _streakDays = 0;
 
@@ -523,6 +527,16 @@ public partial class DashboardViewModel : ViewModelBase
             IsMember = acc.IsMember;
             AccountHelpers.EnsureDeviceId(acc);
 
+            // 账号切换：先从该账号本地积分历史取最近一条，立即同步剩余积分与趋势图，
+            // 不必等接口返回（接口慢/失败也不会残留上个账号的旧值）
+            var localHis = ReadTotalHistory(acc.Id);
+            if (localHis.Count > 0)
+            {
+                RemainingCredits = (int)localHis[^1].Total;
+                if (cfg != null) { cfg.LastRemaining = localHis[^1].Total; }
+            }
+            BuildChartFromHistory(acc.Id);
+
             double remaining = RemainingCredits;   // 失败保留旧值，不清零
             TraeCheckin.CheckinStatus? status = null;
             if (api != null && !string.IsNullOrEmpty(acc.Token))
@@ -545,11 +559,13 @@ public partial class DashboardViewModel : ViewModelBase
             if (status != null)
             {
                 CheckinStatus = status.checked_in ? "今日已签到 ✓" : "今日可签到";
+                NeedLogin = false;
                 TodayReward = "+" + (int)(status.credits + (acc.IsMember ? status.extra_credits : 0));
             }
             else
             {
                 CheckinStatus = string.IsNullOrEmpty(acc.Token) ? "未登录" : "需重登";
+                NeedLogin = true;
             }
 
             // 记录今日总积分并重建该账号趋势曲线（账号切换后曲线随之同步）
@@ -593,6 +609,29 @@ public partial class DashboardViewModel : ViewModelBase
     private async Task RefreshStatus()
     {
         await LoadAsync();
+    }
+
+    /// <summary>重新登录当前激活账号（仪表盘"需重登/未登录"入口）。登录成功后全局刷新。</summary>
+    [RelayCommand]
+    private async Task Relogin()
+    {
+        try
+        {
+            var cfg = MainViewModel.AppConfig;
+            var owner = UiHost.MainWindow;
+            var acc = cfg?.Accounts.FirstOrDefault(a => a.Id == cfg.ActiveAccountId)
+                      ?? cfg?.Accounts.FirstOrDefault();
+            if (cfg == null || owner == null || acc == null) return;
+            var dlg = new Views.LoginWindow(acc);
+            bool ok = await dlg.ShowDialog<bool>(owner);
+            if (ok)
+            {
+                try { cfg.Save(); } catch { /* 忽略保存失败 */ }
+                await RefreshAllAsync();
+                MainViewModel.NotifyActiveAccountChanged();
+            }
+        }
+        catch { /* 登录窗口异常不影响 */ }
     }
 
     [RelayCommand]

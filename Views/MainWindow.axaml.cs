@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
 using Avalonia.Platform;
@@ -19,6 +19,14 @@ public partial class MainWindow : Window
     {
         _notify = new WindowNotificationManager(this) { Position = NotificationPosition.BottomRight, MaxItems = 3 };
         InitializeComponent();
+
+        // 任务栏窗口图标：复用托盘同款 avalonia-logo.ico（缺省时任务栏不显示图标）
+        try
+        {
+            using var iconStream = AssetLoader.Open(new Uri("avares://TraeTools/Assets/avalonia-logo.ico"));
+            Icon = new WindowIcon(iconStream);
+        }
+        catch { /* 图标加载失败不影响主程序 */ }
 
         // 自动签到定时器：每 30 秒检查一次，到点且当天未签时自动签到
         _autoCheckinTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };

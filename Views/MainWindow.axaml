@@ -37,43 +37,43 @@
                     <Button Classes="nav-item" Classes.nav-item-active="{Binding IsDashboardActive}"
                             Command="{Binding NavigateCommand}" CommandParameter="dashboard">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="▦" FontSize="14" Margin="0,0,12,0" Foreground="White" />
-                            <TextBlock Text="仪表盘" />
+                            <TextBlock Text="▦" FontSize="14" Width="20" TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="White" />
+                            <TextBlock Text="仪表盘" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button Classes="nav-item" Classes.nav-item-active="{Binding IsUsageActive}"
                             Command="{Binding NavigateCommand}" CommandParameter="usage">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Σ" FontSize="14" Margin="0,0,12,0" Foreground="White" />
-                            <TextBlock Text="用量统计" />
+                            <TextBlock Text="Σ" FontSize="14" Width="20" TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="White" />
+                            <TextBlock Text="用量统计" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button Classes="nav-item" Classes.nav-item-active="{Binding IsCheckinActive}"
                             Command="{Binding NavigateCommand}" CommandParameter="checkin">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="✓" FontSize="14" Margin="0,0,12,0" Foreground="White" />
-                            <TextBlock Text="每日签到" />
+                            <TextBlock Text="✓" FontSize="14" Width="20" TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="White" />
+                            <TextBlock Text="每日签到" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button Classes="nav-item" Classes.nav-item-active="{Binding IsSwitchActive}"
                             Command="{Binding NavigateCommand}" CommandParameter="switch">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="⇄" FontSize="14" Margin="0,0,12,0" Foreground="White" />
-                            <TextBlock Text="账号切换" />
+                            <TextBlock Text="⇄" FontSize="14" Width="20" TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="White" />
+                            <TextBlock Text="账号切换" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button Classes="nav-item" Classes.nav-item-active="{Binding IsCloudActive}"
                             Command="{Binding NavigateCommand}" CommandParameter="cloud">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="☁" FontSize="14" Margin="0,0,12,0" Foreground="White" />
-                            <TextBlock Text="云端签到" />
+                            <TextBlock Text="☁" FontSize="14" Width="20" TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="White" />
+                            <TextBlock Text="云端签到" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button Classes="nav-item" Classes.nav-item-active="{Binding IsSettingsActive}"
                             Command="{Binding NavigateCommand}" CommandParameter="settings">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="⚙" FontSize="14" Margin="0,0,12,0" Foreground="White" />
-                            <TextBlock Text="设置" />
+                            <TextBlock Text="⚙" FontSize="14" Width="20" TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="White" />
+                            <TextBlock Text="设置" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                 </StackPanel>
