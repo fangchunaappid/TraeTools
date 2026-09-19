@@ -15,6 +15,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # 拉取完整历史与所有 tag，供生成"上一版本→本版本"更新差异
+          fetch-tags: true
 
       - name: Setup .NET 9
         uses: actions/setup-dotnet@v4
@@ -32,14 +35,35 @@ jobs:
           Compress-Archive -Path publish\* -DestinationPath TraeTools-win-x64.zip -Force
           Get-ChildItem -Path publish, TraeTools-win-x64.zip | Select-Object Name, Length
 
+      # 自动生成更新摘要：取上一个 v* tag，汇总其到本版本之间的全部提交（跳过 merge 提交）
+      - name: Generate release notes
+        shell: bash
+        run: |
+          set -e
+          PREV=$(git tag --list 'v*' --sort=-v:refname | grep -v "^${GITHUB_REF_NAME}$" | head -n 1 || true)
+          {
+            echo "TraeTools ${GITHUB_REF_NAME}"
+            echo ""
+            echo "- 单文件自包含 Windows x64 程序（无需额外安装 .NET 运行时）"
+            echo "- 应用内「检查更新」会下载本 Release 的 \`TraeTools.exe\` 自动替换升级"
+            echo ""
+            if [ -n "${PREV}" ]; then
+              echo "## 更新差异（${PREV} → ${GITHUB_REF_NAME}）"
+              echo ""
+              git log --oneline --no-merges "${PREV}..HEAD" || true
+              echo ""
+              echo "> 由提交记录自动生成，完整变更请查看 Commits"
+            else
+              echo "（未找到上一版本 tag，此为首个版本）"
+            fi
+          } > release_notes.md
+          cat release_notes.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: "TraeTools ${{ github.ref_name }}"
-          body: |
-            TraeTools ${{ github.ref_name }}
-            - 单文件自包含 Windows x64 程序（无需额外安装 .NET 运行时）
-            - 应用内「检查更新」会下载本 Release 的 `TraeTools.exe` 自动替换升级
+          body_path: release_notes.md
           files: |
             publish/TraeTools.exe
             TraeTools-win-x64.zip
