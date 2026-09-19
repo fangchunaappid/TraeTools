@@ -1,13 +1,19 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 
 namespace TraeCheckin;
 
 /// <summary>
 /// 本地配置：存储 token、设备号、自动签到设置。
-/// 保存到 %APPDATA%\TraeCheckin\config.json。
+/// 保存到 %APPDATA%\TraeTools\config.json。
+/// 敏感字段（Token/Session/GitHubToken/DeviceId）以当前 Windows 用户 DPAPI 加密落盘，
+/// 加载时解密回内存；旧版明文在首次加载时自动迁移加密。
 /// </summary>
 public class AppConfig
 {
+    /// <summary>敏感字段加密版本标记："dpapi-v1"=已用 DPAPI 加密；null=旧版明文（等待迁移）。</summary>
+    public string? SecretsVaultVersion { get; set; }
     public string? Token { get; set; }
     /// <summary>X-Cloudide-Session 会话 Cookie 值（约 14 天有效），用于 token 失效时静默换新。</summary>
     public string? Session { get; set; }
@@ -55,6 +61,11 @@ public class AppConfig
                 var cfg = JsonSerializer.Deserialize<AppConfig>(json);
                 if (cfg != null)
                 {
+                    // DPAPI 加密迁移：已是 dpapi-v1 则解密回内存使用；旧明文标记版本，稍后统一加密落盘
+                    var needSeal = cfg.SecretsVaultVersion != SecretVaultVersionV1;
+                    UnsealSecrets(cfg);
+                    cfg.SecretsVaultVersion = SecretVaultVersionV1;
+
                     // 多账号迁移：旧单账号转成 Accounts[0]
                     if (TryMigrateLegacy(cfg))
                     {
@@ -74,6 +85,8 @@ public class AppConfig
                         cfg.DeviceId = aha;
                         cfg.Save();
                     }
+                    // 旧明文首次加载：立即加密落盘，避免明文长期留存
+                    if (needSeal) cfg.Save();
                     return cfg;
                 }
             }
@@ -148,9 +161,97 @@ public class AppConfig
         try
         {
             Directory.CreateDirectory(ConfigDir);
-            var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
+            // 写「加密副本」而非 this：敏感字段加密落盘，且不修改内存中的明文（各调用方无感）
+            var json = JsonSerializer.Serialize(CloneForStorage(), new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(ConfigPath, json);
         }
-        catch { /* 忽略保存失败 */ }
+        catch { /* 保存失败（含 DPAPI 异常）时保留磁盘旧文件，下次启动仍可读取 */ }
+    }
+
+    /// <summary>敏感字段加密版本号。</summary>
+    private const string SecretVaultVersionV1 = "dpapi-v1";
+
+    /// <summary>生成一份敏感字段（Token/Session/GitHubToken/DeviceId）已 DPAPI 加密的副本。</summary>
+    private AppConfig CloneForStorage()
+    {
+        return new AppConfig
+        {
+            SecretsVaultVersion = SecretVaultVersionV1,
+            Token = EncryptSecret(Token),
+            Session = EncryptSecret(Session),
+            TokenUpdatedAt = TokenUpdatedAt,
+            GitHubToken = EncryptSecret(GitHubToken),
+            GitHubLogin = GitHubLogin,
+            FeishuWebhook = FeishuWebhook,
+            DeviceId = EncryptSecret(DeviceId),
+            AutoCheckinEnabled = AutoCheckinEnabled,
+            AutoCheckinTime = AutoCheckinTime,
+            CheckinIntervalSeconds = CheckinIntervalSeconds,
+            LastCheckinDate = LastCheckinDate,
+            LastRemaining = LastRemaining,
+            ActiveAccountId = ActiveAccountId,
+            WindowLeft = WindowLeft,
+            WindowTop = WindowTop,
+            WindowWidth = WindowWidth,
+            WindowHeight = WindowHeight,
+            EulaAccepted = EulaAccepted,
+            StarAskedAfterDeploy = StarAskedAfterDeploy,
+            MinimizeToTray = MinimizeToTray,
+            Accounts = Accounts.Select(a => new TraeAccount
+            {
+                Id = a.Id,
+                Name = a.Name,
+                Token = EncryptSecret(a.Token),
+                Session = EncryptSecret(a.Session),
+                DeviceId = EncryptSecret(a.DeviceId),
+                AccountUid = a.AccountUid,
+                TokenUpdatedAt = a.TokenUpdatedAt,
+                LastCheckinDate = a.LastCheckinDate,
+                Enabled = a.Enabled,
+                IsMember = a.IsMember,
+                ScreenName = a.ScreenName,
+                MobileMasked = a.MobileMasked,
+                AvatarUrl = a.AvatarUrl,
+                IsStudent = a.IsStudent,
+            }).ToList(),
+        };
+    }
+
+    /// <summary>已加密配置加载后：解密敏感字段回内存（仅 dpapi-v1 生效；旧明文保持原样等迁移）。</summary>
+    private static void UnsealSecrets(AppConfig cfg)
+    {
+        if (cfg.SecretsVaultVersion != SecretVaultVersionV1) return;
+        cfg.Token = DecryptSecret(cfg.Token);
+        cfg.Session = DecryptSecret(cfg.Session);
+        cfg.GitHubToken = DecryptSecret(cfg.GitHubToken);
+        var dev = DecryptSecret(cfg.DeviceId);
+        if (!string.IsNullOrEmpty(dev)) cfg.DeviceId = dev; // 解密失败（换机/换用户）保留原值，等重新登录刷新
+        foreach (var a in cfg.Accounts)
+        {
+            a.Token = DecryptSecret(a.Token);
+            a.Session = DecryptSecret(a.Session);
+            var aDev = DecryptSecret(a.DeviceId);
+            if (!string.IsNullOrEmpty(aDev)) a.DeviceId = aDev;
+        }
+    }
+
+    /// <summary>DPAPI 加密（当前 Windows 用户作用域）。保护失败抛异常，由调用方兜底（保留旧文件）。</summary>
+    private static string? EncryptSecret(string? plain)
+    {
+        if (string.IsNullOrEmpty(plain)) return plain;
+        var bytes = ProtectedData.Protect(Encoding.UTF8.GetBytes(plain), null, DataProtectionScope.CurrentUser);
+        return Convert.ToBase64String(bytes);
+    }
+
+    /// <summary>DPAPI 解密；失败（如换 Windows 用户/重装系统）返回 null，触发重新登录。</summary>
+    private static string? DecryptSecret(string? enc)
+    {
+        if (string.IsNullOrEmpty(enc)) return enc;
+        try
+        {
+            var bytes = ProtectedData.Unprotect(Convert.FromBase64String(enc), null, DataProtectionScope.CurrentUser);
+            return Encoding.UTF8.GetString(bytes);
+        }
+        catch { return null; }
     }
 }
