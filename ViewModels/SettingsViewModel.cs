@@ -326,6 +326,12 @@ public partial class SettingsViewModel : ViewModelBase
         // 无真实账号时不展示示例账号（示例无法被删除，会造成「账号不存在」误导）
     }
 
+    /// <summary>开关变动立即持久化（写注册表），避免不开「保存设置」直接关窗导致状态丢失。#25</summary>
+    partial void OnAutoStartEnabledChanged(bool value)
+    {
+        try { AutoStartManager.SetEnabled(value); } catch { /* 写注册表失败不阻断 */ }
+    }
+
     [RelayCommand]
     private void SaveSettings()
     {

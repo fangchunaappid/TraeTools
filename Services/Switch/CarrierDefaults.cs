@@ -33,38 +33,51 @@ public static class CarrierDefaults
     private static readonly object DetectLock = new();
     private static string _detectedExe = "";
 
-    /// <summary>按候选列表探测客户端 exe；命中即返回完整路径，未命中返回 null。</summary>
+    /// <summary>按候选目录探测客户端 exe：精确文件优先，其次目录内名字含 TRAE 的主程序，最后目录内唯一 exe；均未命中返回 null。</summary>
     private static string? AutoDetectClientExe()
     {
         const string exeName = "TRAE SOLO CN.exe";
-        var candidates = new List<string>
+        foreach (var dir in CandidateClientDirs())
         {
-            @"D:\TRAE SOLO CN\" + exeName,                                                   // 历史默认（D 盘安装）
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "TRAE SOLO CN", exeName), // 绿色版/便携版
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "TRAE SOLO CN", exeName),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "TRAE SOLO CN", exeName),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TRAE SOLO CN", exeName),
+            try
+            {
+                var exact = Path.Combine(dir, exeName);
+                if (File.Exists(exact)) return exact;
+
+                // 目录内 exe：名字含 TRAE（如 Trae.exe）优先；否则目录里只有一个 exe 时采用它（#25：Program Files 安装可能主程序名不同）
+                var exes = Directory.GetFiles(dir, "*.exe");
+                var hit = exes.FirstOrDefault(f =>
+                    Path.GetFileNameWithoutExtension(f).Contains("TRAE", StringComparison.OrdinalIgnoreCase))
+                    ?? (exes.Length == 1 ? exes[0] : null);
+                if (hit != null) return hit;
+            }
+            catch { /* 单目录判断失败继续下一个 */ }
+        }
+        return null;
+    }
+
+    /// <summary>候选客户端目录：历史默认 + 各常见位置 + 任意固定盘（C/D/E…）的 Program Files / Program Files (x86)。</summary>
+    private static List<string> CandidateClientDirs()
+    {
+        var dirs = new List<string>
+        {
+            @"D:\TRAE SOLO CN",                                                               // 历史默认（D 盘安装）
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "TRAE SOLO CN"), // 绿色版/便携版
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "TRAE SOLO CN"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "TRAE SOLO CN"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TRAE SOLO CN"),
         };
-        // 常见安装位置：任意固定盘（C/D/E…）的 Program Files / Program Files (x86)（修复 #25：装到 D:\Program Files 时探测不到）
         try
         {
             foreach (var drv in DriveInfo.GetDrives())
             {
                 if (!drv.IsReady || drv.DriveType != DriveType.Fixed) continue;
-                candidates.Add(Path.Combine(drv.RootDirectory.FullName, "Program Files", "TRAE SOLO CN", exeName));
-                candidates.Add(Path.Combine(drv.RootDirectory.FullName, "Program Files (x86)", "TRAE SOLO CN", exeName));
+                dirs.Add(Path.Combine(drv.RootDirectory.FullName, "Program Files", "TRAE SOLO CN"));
+                dirs.Add(Path.Combine(drv.RootDirectory.FullName, "Program Files (x86)", "TRAE SOLO CN"));
             }
         }
-        catch { /* 枚举失败忽略 */ }
-        foreach (var c in candidates)
-        {
-            try
-            {
-                if (File.Exists(c)) return c;
-            }
-            catch { /* 单个候选判断失败继续下一个 */ }
-        }
-        return null;
+        catch { /* 枚举磁盘失败忽略 */ }
+        return dirs;
     }
 
     /// <summary>
