@@ -45,6 +45,17 @@ public static class CarrierDefaults
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "TRAE SOLO CN", exeName),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TRAE SOLO CN", exeName),
         };
+        // 常见安装位置：任意固定盘（C/D/E…）的 Program Files / Program Files (x86)（修复 #25：装到 D:\Program Files 时探测不到）
+        try
+        {
+            foreach (var drv in DriveInfo.GetDrives())
+            {
+                if (!drv.IsReady || drv.DriveType != DriveType.Fixed) continue;
+                candidates.Add(Path.Combine(drv.RootDirectory.FullName, "Program Files", "TRAE SOLO CN", exeName));
+                candidates.Add(Path.Combine(drv.RootDirectory.FullName, "Program Files (x86)", "TRAE SOLO CN", exeName));
+            }
+        }
+        catch { /* 枚举失败忽略 */ }
         foreach (var c in candidates)
         {
             try
