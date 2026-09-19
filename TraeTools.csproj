@@ -13,6 +13,11 @@
     <Version>1.0.0</Version>
     <InformationalVersion>1.0.0</InformationalVersion>
     <NoWarn>CA1416;MSB3277</NoWarn>
+    <!-- 发布瘦身：单文件 + 原生库内嵌自解压 + Brotli 压缩，减小 exe 体积（仅影响发布，不影响普通编译） -->
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
   </PropertyGroup>
   <!-- 仅 LoginHostForm/WebViewLoginHost 用显式 using 引用 WinForms，全局 using 会造成与 Avalonia 命名冲突 -->
   <ItemGroup>
