@@ -142,6 +142,16 @@ def main():
             result = checkin(token, device_id)
             body = result["body"]
             code = body.get("code", -1)
+            # 9074「参与用户太多」= 设备号被风控标记；换全新设备号自动重试（最多 5 次）
+            attempt = 1
+            while code == 9074 and attempt < 5:
+                device_id = random_device_id()
+                attempt += 1
+                print("[%s] 命中风控 9074，换新设备号重试（第 %d 次）" % (name, attempt))
+                time.sleep(random.uniform(0.8, 1.5))
+                result = checkin(token, device_id)
+                body = result["body"]
+                code = body.get("code", -1)
             checked = body.get("checked_in", False)
             ok = (result["http"] == 200) and (code == 0 or checked)
             credits = body.get("credits", 0)

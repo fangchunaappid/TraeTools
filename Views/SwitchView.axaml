@@ -1,4 +1,4 @@
-﻿<UserControl xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:TraeTools.ViewModels"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -46,8 +46,15 @@
                         <TextBlock Text="{Binding UserDirectory}" FontSize="12" Foreground="{StaticResource TextMainBrush}" FontFamily="Consolas" TextTrimming="CharacterEllipsis" MaxWidth="180" ToolTip.Tip="{Binding UserDirectory}" />
                     </StackPanel>
                     <StackPanel Grid.Row="0" Grid.Column="1" Spacing="2">
-                        <TextBlock Text="客户端版本" FontSize="11" Foreground="{StaticResource TextSubBrush}" />
-                        <TextBlock Text="{Binding ClientName}" FontSize="12" Foreground="{StaticResource TextMainBrush}" />
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <TextBlock Grid.Column="0" Text="客户端路径" FontSize="11" Foreground="{StaticResource TextSubBrush}" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                                <Button Classes="btn" Content="选择文件" FontSize="11" Padding="8,3" Command="{Binding BrowseClientExeCommand}" />
+                                <Button Classes="btn" Content="重新探测" FontSize="11" Padding="8,3" Command="{Binding ReDetectClientExeCommand}" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding ClientExePath}" FontSize="12" Foreground="{StaticResource TextMainBrush}" FontFamily="Consolas" TextTrimming="CharacterEllipsis" MaxWidth="300" ToolTip.Tip="{Binding ClientExePath}" />
+                        <TextBlock Text="自动探测失败或想指定其他版本时，可手动选择客户端程序或重新探测" FontSize="10" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" MaxWidth="300" />
                     </StackPanel>
                     <StackPanel Grid.Row="0" Grid.Column="2" Spacing="2">
                         <TextBlock Text="载体指纹数" FontSize="11" Foreground="{StaticResource TextSubBrush}" />

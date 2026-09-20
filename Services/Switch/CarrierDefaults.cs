@@ -33,8 +33,11 @@ public static class CarrierDefaults
     private static readonly object DetectLock = new();
     private static string _detectedExe = "";
 
+    /// <summary>清空探测缓存，下次读取 DefaultClientExe 会重新探测（供 UI「重新探测」使用）。</summary>
+    public static void ResetDetection() => _detectedExe = "";
+
     /// <summary>按候选目录探测客户端 exe：精确文件优先，其次目录内名字含 TRAE 的主程序，最后目录内唯一 exe；均未命中返回 null。</summary>
-    private static string? AutoDetectClientExe()
+    public static string? AutoDetectClientExe()
     {
         const string exeName = "TRAE SOLO CN.exe";
         foreach (var dir in CandidateClientDirs())

@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TraeSwitch.Services;
@@ -79,7 +80,97 @@ public partial class SwitchViewModel : ViewModelBase
     {
         var settings = MainViewModel.SwitchSettings;
         if (settings == null) return null;
-        return new ClientController(settings.Data.ProcessName, settings.Data.ClientExe);
+        return new ClientController(settings.Data.ProcessName, ResolveClientExe(settings.Data.ClientExe));
+    }
+
+    /// <summary>
+    /// 客户端 exe 解析：配置路径失效（被移动/改名/历史遗留错误值）时，自动回退到自动探测结果，
+    /// 避免因 settings.json 里的旧路径把切换/启动卡死（#25）。
+    /// </summary>
+    private static string ResolveClientExe(string configured)
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(configured) && File.Exists(configured))
+                return configured;
+        }
+        catch { /* 校验失败走探测 */ }
+        return TraeSwitch.Services.CarrierDefaults.DefaultClientExe;
+    }
+
+    /// <summary>当前生效的客户端路径（配置值或探测回退）。</summary>
+    [ObservableProperty]
+    private string _clientExePath = "";
+
+    /// <summary>
+    /// 手动选择客户端 exe（文件对话框），写入 settings.json 的 ClientExe 并持久化。
+    /// 覆盖自动探测：适用于绿色版 / 自定义安装目录 / 多版本并存等探测无法命中的场景。
+    /// </summary>
+    [RelayCommand]
+    private async Task BrowseClientExe()
+    {
+        try
+        {
+            var win = UiHost.MainWindow;
+            if (win == null)
+            {
+                AppendLog("无法打开文件选择（主窗口未就绪）");
+                return;
+            }
+            var files = await win.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "选择 Trae 客户端程序（TRAE SOLO CN.exe）",
+                AllowMultiple = false,
+                FileTypeFilter = new[]
+                {
+                    new FilePickerFileType("可执行文件 (*.exe)") { Patterns = new[] { "*.exe" } },
+                    new FilePickerFileType("所有文件") { Patterns = new[] { "*" } },
+                },
+            });
+            var path = files.FirstOrDefault()?.TryGetLocalPath();
+            if (string.IsNullOrEmpty(path) || !File.Exists(path))
+            {
+                AppendLog("未选择有效文件，已取消");
+                return;
+            }
+            SetClientExe(path, $"已手动设置客户端路径：{path}");
+        }
+        catch (Exception ex)
+        {
+            AppendLog("选择客户端失败：" + ex.Message);
+        }
+    }
+
+    /// <summary>重新自动探测客户端路径并写入配置（忽略之前缓存）。</summary>
+    [RelayCommand]
+    private void ReDetectClientExe()
+    {
+        try
+        {
+            CarrierDefaults.ResetDetection();
+            var exe = CarrierDefaults.DefaultClientExe;
+            SetClientExe(exe, $"已重新探测客户端路径：{exe}");
+        }
+        catch (Exception ex)
+        {
+            AppendLog("重新探测失败：" + ex.Message);
+        }
+    }
+
+    /// <summary>将客户端路径写入 settings.json 并刷新展示。</summary>
+    private void SetClientExe(string path, string log)
+    {
+        var settings = MainViewModel.SwitchSettings;
+        if (settings == null)
+        {
+            AppendLog("切换服务未初始化，路径未保存");
+            return;
+        }
+        settings.Data.ClientExe = path;
+        try { settings.Save(); } catch { /* 保存失败仍展示 */ }
+        ClientExePath = path;
+        ClientName = Path.GetFileNameWithoutExtension(path);
+        AppendLog(log);
     }
 
     /// <summary>加载账号列表：优先读取 TraeSwitch settings.json 真实账号，逐账号容错。</summary>
@@ -100,7 +191,11 @@ public partial class SwitchViewModel : ViewModelBase
         }
 
         UserDirectory = settings.Data.RootDir;
-        ClientName = Path.GetFileNameWithoutExtension(settings.Data.ClientExe);
+        var exe = ResolveClientExe(settings.Data.ClientExe);
+        if (!string.Equals(exe, settings.Data.ClientExe, StringComparison.OrdinalIgnoreCase))
+            AppendLog($"设置中的客户端路径无效（{settings.Data.ClientExe}），已自动回退到探测路径：{exe}");
+        ClientName = Path.GetFileNameWithoutExtension(exe);
+        ClientExePath = exe;
         CarrierCount = settings.Data.Fingerprint.Count;
 
         var accountNames = settings.Data.Accounts;
