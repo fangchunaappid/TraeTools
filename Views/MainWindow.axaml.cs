@@ -13,6 +13,8 @@ public partial class MainWindow : Window
     private TrayIcon? _trayIcon;
     /// <summary>true=用户从托盘「退出」真正退出；false=关闭窗口仅最小化到托盘。 </summary>
     private bool _realExit;
+    /// <summary>计时器重入守卫：上一轮任务（可能数十秒）未结束前跳过本轮 Tick（#33）。</summary>
+    private bool _tickBusy;
     private readonly WindowNotificationManager _notify;
 
     public MainWindow()
@@ -30,13 +32,20 @@ public partial class MainWindow : Window
 
         // 自动签到定时器：每 30 秒检查一次，到点且当天未签时自动签到
         _autoCheckinTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        // 防重入：上一轮未结束则跳过本轮，避免长任务在常驻托盘场景下叠加（#33）
         _autoCheckinTimer.Tick += async (_, _) =>
         {
-            if (DataContext is MainViewModel vm)
+            if (_tickBusy) return;
+            _tickBusy = true;
+            try
             {
-                await vm.AutoCheckinIfDue();
-                await vm.RefreshSnapshotIfNeeded();
+                if (DataContext is MainViewModel vm)
+                {
+                    await vm.AutoCheckinIfDue();
+                    await vm.RefreshSnapshotIfNeeded();
+                }
             }
+            finally { _tickBusy = false; }
         };
 
         BuildTray();

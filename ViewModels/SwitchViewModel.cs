@@ -275,7 +275,12 @@ public partial class SwitchViewModel : ViewModelBase
 
     private void AppendLog(string line)
     {
-        LogText += $"\n[{DateTime.Now:HH:mm:ss}] {line}";
+        // 防无界增长（#33）：常驻托盘 7×24 运行，日志只进不出会持续涨内存；超限裁掉头部只留尾部
+        const int MaxLogChars = 20_000;
+        var text = LogText + $"\n[{DateTime.Now:HH:mm:ss}] {line}";
+        if (text.Length > MaxLogChars)
+            text = "…（日志已截断，只保留最近部分）\n" + text[^MaxLogChars..];
+        LogText = text;
         AccountHelpers.AppLog("switch", "", line);
     }
 
@@ -487,9 +492,18 @@ public partial class SwitchViewModel : ViewModelBase
             bool ok = await vault.VerifyAsync(account, settings.Data.Fingerprint);
             AppendLog($"建档完成：{count} 个载体文件，校验 {(ok ? "通过" : "未通过")}");
             LoadAccounts();
+            // 建档后自动选中新账号，用户可直接点「校验」复核，避免误报「无建档数据」（#34）
+            var created = Accounts.FirstOrDefault(a => string.Equals(a.Name, account, StringComparison.OrdinalIgnoreCase));
+            if (created != null) SelectedAccount = created;
         }
         catch (Exception ex) { AppendLog("建档失败：" + ex.Message); }
     }
+
+    /// <summary>快照刷新运行锁（防重入，见 TryAutoRefreshSnapshotAsync）。</summary>
+    private bool _refreshBusy;
+
+    /// <summary>最近一次快照检查时间；10 分钟内不重复全量哈希（#33：原先每 30 秒全量跑，一晚 2880 轮）。</summary>
+    private DateTime _lastRefreshCheckUtc = DateTime.MinValue;
 
     /// <summary>
     /// 快照自动刷新（TraeSwitch「会话保鲜」）：客户端已退出且能唯一识别当前账号、
@@ -497,6 +511,11 @@ public partial class SwitchViewModel : ViewModelBase
     /// </summary>
     internal async Task TryAutoRefreshSnapshotAsync()
     {
+        if (_refreshBusy) return;
+        var now = DateTime.UtcNow;
+        if ((now - _lastRefreshCheckUtc).TotalMinutes < 10) return;
+        _lastRefreshCheckUtc = now;
+        _refreshBusy = true;
         try
         {
             var settings = MainViewModel.SwitchSettings;
@@ -534,6 +553,7 @@ public partial class SwitchViewModel : ViewModelBase
         {
             AppendLog("快照自动刷新失败：" + ex.Message);
         }
+        finally { _refreshBusy = false; }
     }
 }
 
