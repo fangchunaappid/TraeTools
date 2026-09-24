@@ -85,28 +85,3 @@ jobs:
             publish/TraeTools.exe
             TraeTools-win-x64.zip
           generate_release_notes: false
-
-  # macOS 版 TraeBar：与 Windows 版共用同一个 v* tag，产出通用（arm64+x86_64）二进制附到同一 Release。
-  # 与 Windows job 并行，softprops 对已存在 release 幂等更新，先后顺序无影响。
-  macos-publish:
-    runs-on: macos-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Build TraeBar (Release, universal)
-        run: |
-          cd macos
-          swift build -c release --arch arm64 --arch x86_64
-          ls -la .build/apple/Products/release/ | head
-
-      - name: Package TraeBar
-        run: |
-          cd macos
-          zip -j TraeBar-macos.zip .build/apple/Products/release/TraeBar
-          ls -la TraeBar-macos.zip
-
-      - name: Attach to Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: macos/TraeBar-macos.zip

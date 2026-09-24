@@ -29,6 +29,8 @@ TraeTools 是对 **TRAE-Checkin** 的重构版，并集成了 **Trea-Switch** �
 
 ## 快速开始
 
+> **macOS 用户看这里**：macOS 原生版 TraeBar（菜单栏常驻多账号自动签到，Swift/AppKit 实现）在本仓库的 [`macos`](https://github.com/star620/TraeTools/tree/macos) 分支独立维护与发布，版本 tag 为 `macos-v*`，发布产物见 [Releases](https://github.com/star620/TraeTools/releases)。本分支（main）仅维护 Windows 版。
+
 ### 方式一：直接使用
 在 [Releases](https://github.com/star620/TraeTools/releases) 下载最新版运行（Windows，需 .NET 9 桌面运行时）。
 
