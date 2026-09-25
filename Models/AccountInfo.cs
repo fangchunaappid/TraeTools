@@ -20,6 +20,11 @@ public partial class AccountInfo : ObservableObject
     /// <summary>脱敏手机号（账号管理卡片展示）。</summary>
     [ObservableProperty]
     private string _mobileText = "";
+
+    /// <summary>手机号行是否显示（无数据时隐藏，账号切换页用，#14）。</summary>
+    public bool ShowMobile => !string.IsNullOrEmpty(MobileText);
+
+    partial void OnMobileTextChanged(string value) => OnPropertyChanged(nameof(ShowMobile));
     /// <summary>是否学生认证（账号管理卡片展示徽章）。</summary>
     [ObservableProperty]
     private bool _isStudent;

@@ -120,6 +120,8 @@
                                             </Border>
                                             <StackPanel Grid.Column="1" Spacing="3" Margin="12,0" VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" />
+                                                <!-- 脱敏手机号（#14）：掉登录时一眼认出是哪个账号；无数据时隐藏 -->
+                                                <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}" Text="{Binding MobileText}" IsVisible="{Binding ShowMobile}" />
                                                 <StackPanel Orientation="Horizontal" Spacing="4" ClipToBounds="True">
                                                     <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}" Text="建档 " />
                                                     <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}" Text="{Binding CreatedAt}" />

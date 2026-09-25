@@ -208,6 +208,21 @@ public partial class SwitchViewModel : ViewModelBase
         Accounts.Clear();
         var colors = new[] { "#3B82F6", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899" };
         int idx = 0;
+
+        // 手机号索引：切换页账号名（建档名）→ 脱敏手机号（#14）。
+        // 与设置页账号管理同源（TraeAccount.MobileMasked），按备注名/平台昵称忽略大小写匹配。
+        var mobileByAccount = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var appAccounts = MainViewModel.AppConfig?.Accounts;
+        if (appAccounts != null)
+        {
+            foreach (var ta in appAccounts)
+            {
+                if (string.IsNullOrWhiteSpace(ta.MobileMasked)) continue;
+                if (!string.IsNullOrWhiteSpace(ta.Name)) mobileByAccount.TryAdd(ta.Name, ta.MobileMasked);
+                if (!string.IsNullOrWhiteSpace(ta.ScreenName)) mobileByAccount.TryAdd(ta.ScreenName, ta.MobileMasked);
+            }
+        }
+
         foreach (var acc in accountNames)
         {
             idx++;
@@ -245,6 +260,7 @@ public partial class SwitchViewModel : ViewModelBase
                     Color = colors[(idx - 1) % colors.Length],
                     Status = status,
                     StatusType = statusType,
+                    MobileText = mobileByAccount.TryGetValue(acc, out var m) ? m : "",
                     CreatedAt = info?.CreatedLocal?.ToString("yyyy-MM-dd HH:mm") ?? "未建档",
                     Carriers = info?.EntryCount ?? 0,
                     Similarity = isCurrent ? "100%" : (info != null ? $"{(int)(score * 100)}%" : "—"),
