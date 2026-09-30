@@ -329,6 +329,7 @@ public partial class CloudViewModel : ViewModelBase
             //（消灭「需去 GitHub 网页手动删 fork」这一小白最大障碍：#8/#13/#15 的根因之一）
             // 注意：源仓库 owner 本人部署时不走 fork（ForkAsync/DeleteForkAsync 均跳过），无需探测，
             // 否则 /repos/{login}/{repo} 返回 200 会误判成「存在旧 fork」并弹出误导性删除确认。
+            bool forkKept = false;   // 用户选择「保留现有 fork」→ 后面跳过 ForkAsync，避免重复建 fork（#26）
             if (!GitHubApiClient.ShouldSkipStar(login))
             {
                 int forkStatus = await _ghApi.CheckForkAsync(token, login);
@@ -354,12 +355,20 @@ public partial class CloudViewModel : ViewModelBase
                         if (!await _ghApi.DeleteForkAsync(token, login)) { HandleDeployFailure(); return; }
                         AppendLog("旧 fork 已删除，重新创建中…");
                     }
+                    else
+                    {
+                        forkKept = true;   // 保留现有：不复建 fork，兑现「不会重复创建」承诺（#26）
+                        AppendLog("沿用现有 fork 仓库，跳过新建 fork…");
+                    }
                 }
             }
 
-            AppendLog("正在 fork 仓库…");
-            if (!await _ghApi.ForkAsync(token, login)) { HandleDeployFailure(); return; }
-            AppendLog("fork 完成");
+            if (!forkKept)
+            {
+                AppendLog("正在 fork 仓库…");
+                if (!await _ghApi.ForkAsync(token, login)) { HandleDeployFailure(); return; }
+                AppendLog("fork 完成");
+            }
 
             // 写凭证（含清理多余 + 飞书 webhook）；重建 fork 后会自动再次调用
             if (!await WriteSecretsAsync()) { HandleDeployFailure(); return; }
@@ -512,6 +521,12 @@ public partial class CloudViewModel : ViewModelBase
         if (err.Contains("授权已失效", StringComparison.Ordinal))
         {
             ClearCloudAuth(err);
+        }
+        else if (err.StartsWith("fork ", StringComparison.Ordinal))
+        {
+            // fork 专用诊断（BuildForkError 文案）原样输出，避免被下方 401/403 分支误判
+            // 覆盖成「补 Actions/Secrets/Contents 权限」的旧方向提示（#26）。
+            AppendLog("部署失败：" + err);
         }
         else if (err.Contains("401", StringComparison.Ordinal))
         {

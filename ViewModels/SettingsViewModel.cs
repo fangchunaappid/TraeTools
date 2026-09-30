@@ -286,6 +286,55 @@ public partial class SettingsViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// 一键为全部账号更换全新设备号（#40）：多账号逐个换太麻烦，批量换发规避风控。
+    /// 使用 AccountStore.RenewAllDeviceIds 保证每个新号与其它账号互不重复（避免共用触发 9074）。
+    /// 换号后云端部署的 TRAE_DEVICE_ID* 需重新「云端部署」同步。
+    /// </summary>
+    [RelayCommand]
+    private async Task RenewAllDeviceIds()
+    {
+        try
+        {
+            var cfg = MainViewModel.AppConfig;
+            var owner = UiHost.MainWindow;
+            if (cfg == null || owner == null || cfg.Accounts.Count == 0)
+            {
+                PushStatus = cfg == null || cfg.Accounts.Count == 0 ? "暂无账号，请先添加/登录账号" : "主窗口未就绪";
+                return;
+            }
+
+            var ask = new TraeTools.Views.PromptWindow(
+                "一键更换全部设备码",
+                $"将为全部 {cfg.Accounts.Count} 个账号重新生成设备码（互不重复）。\n\n" +
+                "用于多账号被风控（-9074 参与用户太多）时批量规避。\n" +
+                "更换后云端部署需重新「云端部署」同步新的 TRAE_DEVICE_ID*。\n\n是否继续？",
+                "全部更换", "取消");
+            bool ok = owner != null ? await ask.ShowDialog<bool>(owner) : false;
+            if (!ok)
+            {
+                PushStatus = "已取消";
+                return;
+            }
+
+            var store = new TraeCheckin.AccountStore(cfg);
+            int count = store.RenewAllDeviceIds();
+            try { cfg.Save(); } catch { /* 保存失败提示仍展示 */ }
+
+            // 联动 Token 面板显示当前选中账号的新设备号
+            var sel = cfg.Accounts.FirstOrDefault(a => a.Id == SelectedAccount?.Id);
+            if (sel != null) DeviceIdText = sel.DeviceId;
+
+            PushStatus = $"已为全部 {count} 个账号更换新设备码（互不重复）✓";
+            AccountHelpers.AppLog("account", "", $"一键换设备码：已更换全部 {count} 个账号");
+            MainViewModel.NotifyActiveAccountChanged();
+        }
+        catch (Exception ex)
+        {
+            PushStatus = "更换失败：" + ex.Message;
+        }
+    }
+
     private void PopulateAccounts()
     {
         // 重载前必须清空，否则追加导致旧账号重复显示

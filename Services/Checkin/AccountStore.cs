@@ -98,6 +98,33 @@ public class AccountStore
             account.DeviceId = NewUniqueDeviceId(exceptId: account.Id);
     }
 
+    /// <summary>
+    /// 强制给单个账号换发全新的 16 位设备号（保证与其它账号不重复），并持久化返回新值。
+    /// 用于该账号设备号被 Trae 风控标记（-9074 各位参与用户太多）时更换规避。
+    /// </summary>
+    public string RenewDeviceId(TraeAccount account)
+    {
+        string old = account.DeviceId;
+        string fresh = NewUniqueDeviceId(exceptId: account.Id);
+        int guard = 0;
+        while (fresh == old && guard++ < 8)   // 极低概率撞回旧值，重试几次
+            fresh = NewUniqueDeviceId(exceptId: account.Id);
+        account.DeviceId = fresh;
+        return fresh;
+    }
+
+    /// <summary>为全部账号逐个换发新设备号（互不重复）。返回换了几个；换号后需调用方 Save。</summary>
+    public int RenewAllDeviceIds()
+    {
+        if (_config.Accounts.Count == 0) return 0;
+        foreach (var acc in _config.Accounts)
+        {
+            // 逐个换发，NewUniqueDeviceId 内部会排除包括已被换号的其它账号，保证全局互不重复
+            RenewDeviceId(acc);
+        }
+        return _config.Accounts.Count;
+    }
+
     /// <summary>生成不与已存在账号冲突的 16 位设备号（多账号共用同一设备号会触发 9074）。</summary>
     private string NewUniqueDeviceId(string? exceptId)
     {

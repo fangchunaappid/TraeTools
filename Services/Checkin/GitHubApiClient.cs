@@ -182,10 +182,13 @@ public class GitHubApiClient
             using var resp = await SendApiAsync(HttpMethod.Post, $"/repos/{SourceOwner}/{SourceRepo}/forks", token);
             if (resp.StatusCode != System.Net.HttpStatusCode.Accepted && !resp.IsSuccessStatusCode)
             {
-                // 401/403 给出小白可读的根因提示，其余照旧报 HTTP 码
+                // 401/403 提示要针对「建 fork」本身：fork 靠的既不是 classic repo scope（POST /forks
+                // 的 X-Accepted-Oauth-Scopes 为空），也非 fork 之后写 secret/Actions 用的那批权限——
+                // 之前把 BuildPatScopeHint 里那 5 项（Actions/Contents/Secrets/Workflows）当成解法，
+                // 是 #26 指出的方向性错误（那批权限不作用于建 fork，照单给齐仍 403）。
                 int code = (int)resp.StatusCode;
                 LastError = code == 401 || code == 403
-                    ? BuildAuthFailureHint(code)
+                    ? BuildForkError(code)
                     : $"fork 失败：HTTP {code}";
                 return false;
             }
@@ -207,6 +210,12 @@ public class GitHubApiClient
         try
         {
             using var resp = await SendApiAsync(HttpMethod.Get, $"/repos/{login}/{SourceRepo}", token);
+            // 401/403 时把具体原因写进 LastError，否则上层 HandleDeployFailure 读到空/残留错误
+            if (resp.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+                resp.StatusCode == System.Net.HttpStatusCode.Forbidden)
+            {
+                LastError = BuildForkError((int)resp.StatusCode);
+            }
             return (int)resp.StatusCode;   // 200=已存在 404=不存在 401/403=鉴权问题
         }
         catch (Exception ex)
@@ -243,6 +252,23 @@ public class GitHubApiClient
             : statusCode == 403
                 ? "GitHub 权限不足（HTTP 403）：设备码授权时请允许 repo 权限；若使用 PAT 请按提示补足 Workflows/Secrets/Contents 写权限后重新授权。"
                 : $"HTTP {statusCode}";
+
+    /// <summary>
+    /// 「建 fork」接口（POST /forks）的 401/403 诊断文案。
+    /// 与 BuildAuthFailureHint 的区别：fork 失败时不能指向 fork 之后写 secret/Actions 用的
+    /// Actions/Contents/Secrets/Workflows 那批权限——它们不作用于建 fork，给了也白给（#26 根因）。
+    /// 建 fork 需要的是对源仓库的 fork 能力：细粒度 PAT 需在 Repository access 选中源仓库
+    /// 并开启 Administration: Read and write（含 fork），classic PAT/oAuth 需含 repo scope。
+    /// </summary>
+    public static string BuildForkError(int statusCode)
+        => statusCode == 401
+            ? "fork 失败：GitHub 授权已失效（HTTP 401），请先「重新授权」再部署。"
+            : (statusCode == 403
+                ? "fork 失败：Token 对源仓库没有 fork 权限（HTTP 403）。建 fork 不靠 Actions/Secrets/Contents 那批写权限——"
+                  + "请改为：① 细粒度 PAT → Repository access 选中 star620/TraeTools（若已 fork 另加你自己的 fork 仓库），"
+                  + "并在 Permissions 开启 Administration: Read and write（其中含 fork）；"
+                  + "② classic PAT / 设备码授权 → 需包含 repo scope。按此调整后需重新生成 Token/重新授权。"
+                : $"fork 失败：HTTP {statusCode}");
 
     /// <summary>
     /// 给源仓库点 star。仅在云端部署成功、用户弹窗确认愿意支持时调用，不再自动点赞。
