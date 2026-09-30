@@ -242,7 +242,11 @@ public partial class MainViewModel : ViewModelBase
             try
             {
                 var credits = await api.GetRemainingCreditsAsync(acc.Token, acc.DeviceId);
-                if (credits >= 0) cfg.LastRemaining = credits;
+                if (credits >= 0)
+                {
+                    acc.RemainingCredits = credits;   // 按账号持久化
+                    cfg.LastRemaining = credits;
+                }
             }
             catch { /* 积分刷新失败不影响签到结果 */ }
             try { cfg.Save(); } catch { /* 忽略 */ }

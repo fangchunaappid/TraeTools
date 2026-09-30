@@ -24,6 +24,8 @@ public class TraeAccount
     public DateTime? TokenUpdatedAt { get; set; }
     /// <summary>该账号最近一次本地签到日期。</summary>
     public DateTime? LastCheckinDate { get; set; }
+    /// <summary>该账号最近一次刷新/签到的剩余积分；-1 表示尚未获取过（仪表盘回退用全局 LastRemaining）。</summary>
+    public double RemainingCredits { get; set; } = -1;
     /// <summary>是否参与本地自动签到与云端部署。</summary>
     public bool Enabled { get; set; } = true;
     /// <summary>

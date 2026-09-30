@@ -491,7 +491,11 @@ public partial class CheckinViewModel : ViewModelBase
         try
         {
             var credits = await api.GetRemainingCreditsAsync(acc.Token, acc.DeviceId);
-            if (credits >= 0 && string.IsNullOrEmpty(api.LastError)) cfg.LastRemaining = credits;
+            if (credits >= 0 && string.IsNullOrEmpty(api.LastError))
+            {
+                acc.RemainingCredits = credits;   // 按账号持久化
+                cfg.LastRemaining = credits;
+            }
         }
         catch { /* 积分刷新失败不影响 */ }
         try { cfg.Save(); } catch { /* 忽略 */ }

@@ -207,6 +207,7 @@ public class AppConfig
                 AccountUid = a.AccountUid,
                 TokenUpdatedAt = a.TokenUpdatedAt,
                 LastCheckinDate = a.LastCheckinDate,
+                RemainingCredits = a.RemainingCredits,
                 Enabled = a.Enabled,
                 IsMember = a.IsMember,
                 ScreenName = a.ScreenName,

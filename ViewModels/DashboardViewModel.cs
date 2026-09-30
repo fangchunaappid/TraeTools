@@ -260,7 +260,11 @@ public partial class DashboardViewModel : ViewModelBase
         {
             try
             {
-                if (cfg.LastRemaining >= 0)
+                // 剩余积分按账号持久化：该账号已有记录则优先，旧数据/未刷新过回退全局 LastRemaining
+                var accRem = cfg.Accounts.FirstOrDefault(a => a.Id == cfg.ActiveAccountId)?.RemainingCredits;
+                if (accRem is >= 0)
+                    RemainingCredits = (int)accRem;
+                else if (cfg.LastRemaining >= 0)
                     RemainingCredits = (int)cfg.LastRemaining;
 
                 if (cfg.LastCheckinDate.HasValue)
@@ -493,6 +497,7 @@ public partial class DashboardViewModel : ViewModelBase
             if (credits > 0 || (credits >= 0 && string.IsNullOrEmpty(api.LastError)))
             {
                 RemainingCredits = (int)credits;
+                acc.RemainingCredits = credits;   // 按账号持久化
                 cfg.LastRemaining = credits;
                 try { cfg.Save(); } catch { /* 忽略保存失败 */ }
             }
@@ -533,11 +538,12 @@ public partial class DashboardViewModel : ViewModelBase
             if (localHis.Count > 0)
             {
                 RemainingCredits = (int)localHis[^1].Total;
+                acc.RemainingCredits = localHis[^1].Total;   // 按账号持久化
                 if (cfg != null) { cfg.LastRemaining = localHis[^1].Total; }
             }
             BuildChartFromHistory(acc.Id);
 
-            double remaining = RemainingCredits;   // 失败保留旧值，不清零
+            double remaining = acc.RemainingCredits >= 0 ? acc.RemainingCredits : RemainingCredits;   // 失败保留旧值，不清零
             TraeCheckin.CheckinStatus? status = null;
             if (api != null && !string.IsNullOrEmpty(acc.Token))
             {
@@ -550,6 +556,7 @@ public partial class DashboardViewModel : ViewModelBase
                     if (r >= 0 && string.IsNullOrEmpty(api.LastError))
                     {
                         remaining = r;
+                        acc.RemainingCredits = r;   // 按账号持久化，切号再切回仍是新积分
                         if (cfg != null) { cfg.LastRemaining = r; try { cfg.Save(); } catch { /* 忽略 */ } }
                     }
                 }
@@ -684,6 +691,7 @@ public partial class DashboardViewModel : ViewModelBase
                 if (credits > 0 || (credits >= 0 && string.IsNullOrEmpty(api.LastError)))
                 {
                     RemainingCredits = (int)credits;
+                    acc.RemainingCredits = credits;   // 按账号持久化
                     cfg.LastRemaining = credits;
                 }
                 try { cfg.Save(); } catch { /* 忽略 */ }
