@@ -13,7 +13,7 @@
 **验证命令：**
 ```powershell
 Get-Process -Name "TraeTools" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-dotnet build "C:\Users\星梦\Desktop\项目开发\TraeTools\TraeTools.csproj" -c Release
+dotnet build "TraeTools.csproj" -c Release
 # 预期：0 错误 0 警告；之后 Start-Process exe 运行 4 秒不崩溃
 ```
 
@@ -22,7 +22,7 @@ dotnet build "C:\Users\星梦\Desktop\项目开发\TraeTools\TraeTools.csproj" -
 ### Task 1: 新建 ViewModels/AccountHelpers.cs（共享：DeviceId 补发 + token 换新）
 
 **Files:**
-- Create: `C:\Users\星梦\Desktop\项目开发\TraeTools\ViewModels\AccountHelpers.cs`
+- Create: `ViewModels\AccountHelpers.cs`
 
 - [ ] **Step 1: 写文件**
 
@@ -83,7 +83,7 @@ public static class AccountHelpers
 
 - [ ] **Step 2: 构建验证（此时 AccountHelpers 未使用也允许，先确认可编译）**
 
-Run: `dotnet build "C:\Users\星梦\Desktop\项目开发\TraeTools\TraeTools.csproj" -c Release`
+Run: `dotnet build "TraeTools.csproj" -c Release`
 Expected: 0 错误 0 警告（未使用类型不影响）
 
 - [ ] **Step 3: 让 CheckinViewModel 复用（删除其私有 EnsureDeviceId / EnsureValidTokenAsync 重复实现）**
@@ -455,7 +455,7 @@ Run: `Get-Process TraeTools -ErrorAction SilentlyContinue | Stop-Process -Force;
 
 - [ ] **Step 2: 运行冒烟**
 
-Run: `Start-Process "C:\Users\星梦\Desktop\项目开发\TraeTools输出\TraeTools.exe"; Start-Sleep 4; (Get-Process TraeTools) 存活` → 进程存活不崩溃
+Run: `Start-Process "TraeTools输出\TraeTools.exe"; Start-Sleep 4; (Get-Process TraeTools) 存活` → 进程存活不崩溃
 
 - [ ] **Step 3: 手动验收清单（告知用户）**
 - 设置页选中账号 A→仪表盘：账号名/今日状态/剩余积分/单日奖励随 A 且来自真实接口

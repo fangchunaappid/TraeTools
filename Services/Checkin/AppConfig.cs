@@ -131,12 +131,14 @@ public class AppConfig
 
     /// <summary>
     /// 从本机 TraeWork 官方客户端的数据目录解析 Aha 设备 ID（16 位数字）。
-    /// storage.json 中存在形如 "iCubeAuthInfo://icube-dc:3049374157909753" 的键。
+    /// storage.json 中存在形如 "iCubeAuthInfo://icube-dc:1234567890123456" 的键。
     /// </summary>
     internal static string? TryResolveAhaDeviceId()
     {
         var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        var dirs = new[] { "TRAE SOLO CN", "Trae CN", "TRAE SOLO" };
+        // 顺序重要：现役客户端 Trae CN 必须排在最前。融合迁移后旧目录（TRAE SOLO CN / TRAE SOLO）
+        // 可能仍残留 storage.json 且带着**失效的旧设备号**，先读旧目录会把过期设备号当成当前设备。
+        var dirs = new[] { "Trae CN", "TRAE SOLO CN", "TRAE SOLO" };
         foreach (var dir in dirs)
         {
             var path = Path.Combine(appData, dir, "User", "globalStorage", "storage.json");
