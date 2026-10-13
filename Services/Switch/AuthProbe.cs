@@ -33,8 +33,9 @@ public static class AuthProbe
     }
 
     /// <summary>
-    /// 读登录凭据是否齐全。返回语义：
-    /// true=已登录；false=确定未登录（键缺失/为空）；null=暂时读不到（文件被占用等瞬态），不要据此判"未登录"。
+    /// 读登录凭据是否齐全。返回语义（P1-1 的成功判据基础）：
+    /// true=已登录（两把键都非空）；false=**确定**未登录（键缺失/为空——客户端 clearUserInfo 的表现）；
+    /// null=暂时读不到/读不完整（文件被占用，或客户端正在整体重写导致 JSON 截断），不要据此判"未登录"。
     /// </summary>
     public static bool? HasAuthCreds(string path)
     {
@@ -44,11 +45,14 @@ public static class AuthProbe
         return HasAuthCredsText(json);
     }
 
-    public static bool HasAuthCredsText(string json)
+    /// <summary>同 <see cref="HasAuthCreds"/>，但直接对 JSON 文本判定（解析失败视为瞬态 null）。</summary>
+    public static bool? HasAuthCredsText(string json)
     {
-        try
+        JsonDocument doc;
+        try { doc = JsonDocument.Parse(json); }
+        catch { return null; }   // 客户端正在改写/截断：瞬态，不能当"已登出"
+        using (doc)
         {
-            using var doc = JsonDocument.Parse(json);
             foreach (var key in AuthKeys)
             {
                 if (!doc.RootElement.TryGetProperty(key, out var v) ||
@@ -58,6 +62,5 @@ public static class AuthProbe
             }
             return true;
         }
-        catch { return false; }
     }
 }

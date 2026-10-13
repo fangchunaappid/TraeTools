@@ -15,7 +15,10 @@ public enum SwitchOutcomeKind
 /// 切换结果；RollbackDir 保留"切换前 live"快照，MainForm 处理完需删除；
 /// 需要回滚时调用 <see cref="SwitcherService.RollbackSwitchAsync"/>。
 /// </summary>
-public sealed record SwitchOutcome(SwitchOutcomeKind Kind, string? RollbackDir, string[] Rels, string Account);
+public sealed record SwitchOutcome(
+    SwitchOutcomeKind Kind, string? RollbackDir, string[] Rels, string Account,
+    /// <summary>守护期间观察到的信号摘要（写日志用，帮助判断"为什么是 NeedsConfirm"）。</summary>
+    string? Detail = null);
 
 /// <summary>
 /// 冷切换编排：结束进程 → 当前 live 载体做临时回滚快照 → 写回目标账号 vault → 拉起客户端。
@@ -89,7 +92,8 @@ public sealed class SwitcherService(string rootDir, VaultService vault, IClientC
         }
 
         var storage = AuthProbe.StoragePath(rootDir);
-        var baseline = AuthProbe.GetStamp(storage); // 客户端已关，指纹稳定
+        // 客户端已关，此处取一次基线：仅用于诊断（"客户端是否写过 storage.json"），不再作成功判据
+        var baseline = AuthProbe.GetStamp(storage);
 
         try { client.Launch(); }
         catch
@@ -102,8 +106,12 @@ public sealed class SwitcherService(string rootDir, VaultService vault, IClientC
             throw;
         }
 
-        // 轮询：等客户端起来，并看它是否真的写入了 storage.json（云会话在工作的迹象）
-        bool runningSeen = false, changed = false;
+        // 轮询**登录凭据键**（P1-1），不再看 storage.json 的时间戳：
+        // 恢复 vault→live 这一步自身就会改 storage.json 的时间戳/长度，用"首见变化"判成功是假阳性——
+        // 客户端随后鉴权失败会 clearUserInfo（删掉 icube.cloudide 键、界面显示未登录），
+        // 而时间戳判据在它删除之前就已经报 Active 了。
+        // 正确信号只有凭据键本身：被客户端删除 = 明确未进入；全程齐全 = 真进入。
+        bool runningSeen = false, credsSeen = false, authCleared = false, stampTouched = false;
         var started = DateTime.UtcNow;
         var deadline = started.Add(GuardTimeout);
         while (DateTime.UtcNow < deadline)
@@ -112,26 +120,49 @@ public sealed class SwitcherService(string rootDir, VaultService vault, IClientC
             progress?.Invoke(DateTime.UtcNow - started);
             if (!client.IsRunning()) continue;
             runningSeen = true;
-            if (AuthProbe.StampChanged(baseline, AuthProbe.GetStamp(storage)))
+            if (AuthProbe.StampChanged(baseline, AuthProbe.GetStamp(storage))) stampTouched = true;
+            switch (AuthProbe.HasAuthCreds(storage))
             {
-                changed = true;
-                break;
+                case false:   // 客户端 clearUserInfo：登出/未进入（如 refresh token 失效后主动删键）
+                    authCleared = true;
+                    break;
+                case true:    // 凭据键齐全，至少见到过进入态
+                    credsSeen = true;
+                    break;
+                // null = 文件被占用/正在改写，瞬态：忽略，下轮再试
             }
+            if (authCleared) break;   // 明确失败，提前结束
         }
 
-        var creds = AuthProbe.HasAuthCreds(storage);
         SwitchOutcomeKind kind;
-        if (creds == false || !runningSeen)
-            kind = SwitchOutcomeKind.RolledBack;      // 确定没登录 / 进程没起来
-        else if (creds == true && changed)
-            kind = SwitchOutcomeKind.Active;           // 写了会话且凭据齐全
+        string? detail;
+        if (!runningSeen)
+        {
+            kind = SwitchOutcomeKind.RolledBack;      // 进程没起来
+            detail = "客户端进程在守护期内未起来";
+        }
+        else if (authCleared)
+        {
+            kind = SwitchOutcomeKind.RolledBack;      // 客户端主动登出
+            detail = "客户端已主动清除登录凭据（通常为 refresh token 失效 / 该账号未登录）";
+        }
+        else if (credsSeen)
+        {
+            kind = SwitchOutcomeKind.Active;           // 进程起来且凭据键全程保持
+            detail = "登录凭据键全程齐全";
+        }
         else
-            kind = SwitchOutcomeKind.NeedsConfirm;     // 凭据在但没写入迹象 / 暂时读不到
+        {
+            kind = SwitchOutcomeKind.NeedsConfirm;     // 凭据始终读不到，需人工确认
+            detail = stampTouched
+                ? "客户端写过 storage.json，但登录凭据键始终读不到（可能被占用或在拖延）"
+                : "守护期内未观察到客户端写入 storage.json";
+        }
 
         if (kind == SwitchOutcomeKind.RolledBack)
             DoRollback(rollback, rels);
 
-        return new SwitchOutcome(kind, rollback, rels, account);
+        return new SwitchOutcome(kind, rollback, rels, account, detail);
     }
 
     /// <summary>守护判定为 NeedsConfirm 且用户选择回滚时调用。</summary>
@@ -151,7 +182,8 @@ public sealed class SwitcherService(string rootDir, VaultService vault, IClientC
 
     private void Rollback(string rollback, string[] rels)
     {
-        foreach (var rel in rels)
-            VaultService.OverwriteEntry(rollback, rootDir, rel);
+        // 与恢复同一条路径：回滚同样要先清目标侧 code.lock 与 state.vscdb 边车，
+        // 否则回滚后启动客户端会回放到失败切换写入的 WAL，旧账号同样起不来。
+        VaultService.RestoreEntrySet(rollback, rootDir, rels);
     }
 }
