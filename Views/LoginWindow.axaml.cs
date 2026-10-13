@@ -39,14 +39,11 @@ public partial class LoginWindow : Window
             _ = _account;
         }
 
-        // 未安装 WebView2 运行库时内嵌登录不可用，明确提示改用下方手动粘贴方案
-        try
+        // P2-1：内嵌浏览器已拆到独立宿主进程（TraeTools.LoginHost.exe），主程序不含 WinForms/WebView2。
+        // 找不到宿主（未随程序分发）时明确提示改用下方手动粘贴方案。
+        if (!LoginHostClient.IsAvailable())
         {
-            _ = Microsoft.Web.WebView2.Core.CoreWebView2Environment.GetAvailableBrowserVersionString();
-        }
-        catch
-        {
-            AutoStatus.Text = "未检测到 WebView2 运行库，请使用下方「手动方案」粘贴 Cloud-IDE-Token";
+            AutoStatus.Text = $"未找到登录宿主程序 {LoginHostClient.HelperFileName}，请使用下方「手动方案」粘贴 Cloud-IDE-Token";
             return;
         }
 
@@ -59,7 +56,7 @@ public partial class LoginWindow : Window
                 "TraeTools", "WebView", "account_" + (_account.Id.Length > 12 ? _account.Id[..12] : _account.Id));
 
             // 接口探索已完成；false=正常登录（自动识别并关闭窗口）。需要再抓包时改为 true
-            var result = await WebViewLoginHost.RunAsync(webViewDir, _account.Token, debugCapture: false);
+            var result = await LoginHostClient.RunAsync(webViewDir, _account.Token, debugCapture: false);
 
             if (result == null)
             {

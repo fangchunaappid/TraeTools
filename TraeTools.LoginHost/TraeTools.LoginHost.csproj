@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <!-- P2-1：WinForms + WebView2 是 NativeAOT 的两个硬阻塞，已整体拆到本独立宿主进程。
+         主程序 TraeTools 不再引用它们，因此可以走 PublishAot；本宿主保持普通 JIT 编译。 -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>TraeTools.LoginHost</AssemblyName>
+    <RootNamespace>TraeTools.LoginHost</RootNamespace>
+    <Version>1.0.0</Version>
+    <ApplicationIcon>..\Assets\avalonia-logo.ico</ApplicationIcon>
+    <!-- MSB3277：WebView2 包同时带 WinForms/WPF 版程序集，WindowsBase 版本冲突仅为噪声警告 -->
+    <NoWarn>CA1416;MSB3277</NoWarn>
+    <!-- 发布形态与主程序一致：单文件自包含，用户机器无需装 .NET -->
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- token 判定工具与主程序同源，避免两份实现漂移 -->
+    <Compile Include="..\Services\Checkin\TokenUtils.cs" Link="TokenUtils.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
+  </ItemGroup>
+</Project>
