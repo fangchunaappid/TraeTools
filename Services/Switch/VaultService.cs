@@ -40,7 +40,7 @@ public sealed class VaultService(string rootDir, string vaultRoot)
     public string AccountDir(string account) => Path.Combine(vaultRoot, Sanitize(account));
     public string MetaPath(string account) => Path.Combine(AccountDir(account), "meta.json");
 
-    /// <summary>展开指纹条目为 root 相对文件路径（目录则递归其中全部文件）。</summary>
+    /// <summary>展开指纹条目为 root 相对文件路径（目录则递归其中全部文件，但跳过缓存/日志类目录）。</summary>
     public static IEnumerable<string> ExpandFingerprint(string rootDir, IEnumerable<string> fingerprint)
     {
         foreach (var rel in fingerprint)
@@ -48,7 +48,7 @@ public sealed class VaultService(string rootDir, string vaultRoot)
             var p = Path.Combine(rootDir, rel);
             if (Directory.Exists(p))
             {
-                foreach (var f in Directory.EnumerateFiles(p, "*", SearchOption.AllDirectories))
+                foreach (var f in CarrierProfiler.EnumerateTree(p))
                     yield return Path.GetRelativePath(rootDir, f);
             }
             else if (File.Exists(p))
@@ -70,7 +70,9 @@ public sealed class VaultService(string rootDir, string vaultRoot)
         {
             if (Directory.Exists(dst)) Directory.Delete(dst, recursive: true);
             Directory.CreateDirectory(dst);
-            foreach (var f in Directory.EnumerateFiles(src, "*", SearchOption.AllDirectories))
+            // 同样跳过缓存/日志类目录：回滚快照若把 Partitions 下的 Cache 整棵拷走，
+            // 会白搬上千个文件、数十 MB（实测 51.4 MB），而这些内容与登录态无关。
+            foreach (var f in CarrierProfiler.EnumerateTree(src))
             {
                 var target = Path.Combine(dst, Path.GetRelativePath(src, f));
                 Directory.CreateDirectory(Path.GetDirectoryName(target)!);
@@ -89,29 +91,36 @@ public sealed class VaultService(string rootDir, string vaultRoot)
     public async Task<int> BackupAsync(string account, IEnumerable<string> fingerprint)
     {
         var dir = AccountDir(account);
-        Directory.CreateDirectory(dir);
-        var entries = new List<VaultEntry>();
-        foreach (var rel in fingerprint)
+        var fp = fingerprint as string[] ?? fingerprint.ToArray();
+        // 建档要逐文件拷贝 + 算 SHA-256，指纹里含目录条目时文件数可达上千、体积数十 MB，
+        // 在 UI 线程上做会长时间冻住界面（实测 1151 个文件/54.6 MB 时冻了 11 秒），必须放后台线程。
+        var entries = await Task.Run(() =>
         {
-            var src = Path.Combine(rootDir, rel);
-            if (Directory.Exists(src))
+            Directory.CreateDirectory(dir);
+            var list = new List<VaultEntry>();
+            foreach (var rel in fp)
             {
-                foreach (var f in Directory.EnumerateFiles(src, "*", SearchOption.AllDirectories))
+                var src = Path.Combine(rootDir, rel);
+                if (Directory.Exists(src))
                 {
-                    var dst = Path.Combine(dir, Path.GetRelativePath(rootDir, f));
+                    foreach (var f in CarrierProfiler.EnumerateTree(src))
+                    {
+                        var dst = Path.Combine(dir, Path.GetRelativePath(rootDir, f));
+                        Directory.CreateDirectory(Path.GetDirectoryName(dst)!);
+                        File.Copy(f, dst, overwrite: true);
+                        list.Add(new VaultEntry(Path.GetRelativePath(rootDir, f), new FileInfo(f).Length, CarrierProfiler.HashFile(f)));
+                    }
+                }
+                else if (File.Exists(src))
+                {
+                    var dst = Path.Combine(dir, rel);
                     Directory.CreateDirectory(Path.GetDirectoryName(dst)!);
-                    File.Copy(f, dst, overwrite: true);
-                    entries.Add(new VaultEntry(Path.GetRelativePath(rootDir, f), new FileInfo(f).Length, CarrierProfiler.HashFile(f)));
+                    File.Copy(src, dst, overwrite: true);
+                    list.Add(new VaultEntry(rel, new FileInfo(src).Length, CarrierProfiler.HashFile(src)));
                 }
             }
-            else if (File.Exists(src))
-            {
-                var dst = Path.Combine(dir, rel);
-                Directory.CreateDirectory(Path.GetDirectoryName(dst)!);
-                File.Copy(src, dst, overwrite: true);
-                entries.Add(new VaultEntry(rel, new FileInfo(src).Length, CarrierProfiler.HashFile(src)));
-            }
-        }
+            return list;
+        });
         var meta = new VaultMeta(account, DateTime.UtcNow.ToString("o"), entries);
         await File.WriteAllTextAsync(MetaPath(account), AppJsonIndented.Serialize(meta));
         return entries.Count;
@@ -167,9 +176,22 @@ public sealed class VaultService(string rootDir, string vaultRoot)
             || norm == "user/globalstorage/storage.json";
     }
 
-    /// <summary>识别评分时不应计入的文件（leveldb 管理噪声 + 运行痕迹）。</summary>
+    /// <summary>
+    /// 缓存/临时目录下的文件（Chromium 的 Cache / GPUCache / DawnWebGPUCache / Code Cache 等）：
+    /// 与登录态无关却动辄上千个文件、数十 MB。目录名复用 <see cref="CarrierProfiler.DefaultExcludeDirs"/>，
+    /// 保证"建档收录"与"目录扫描"口径一致。此处兜底还兼作**历史快照的兼容**——
+    /// 老版本建档时把这些缓存也收录了，评分与校验必须跳过它们，否则客户端一跑就误判"校验未通过"。
+    /// </summary>
+    private static bool IsVolatileCachePath(string rel)
+    {
+        foreach (var seg in NormalizeRel(rel).Split('\\'))
+            if (CarrierProfiler.IsExcludedDir(seg)) return true;
+        return false;
+    }
+
+    /// <summary>识别评分时不应计入的文件（缓存 + leveldb 管理噪声 + 运行痕迹）。</summary>
     private static bool IsNonDiscriminative(string rel)
-        => IsLeveldbNoise(rel) || IsRuntimeStateFile(rel);
+        => IsVolatileCachePath(rel) || IsLeveldbNoise(rel) || IsRuntimeStateFile(rel);
 
     /// <summary>计算 live 与某账号快照的相似度 0..1：meta 中每条"非噪声"载体文件在 live 原路径
     /// 存在且哈希一致即命中；命中数 / 可比数。live 侧多出的文件不判负。
@@ -265,8 +287,10 @@ public sealed class VaultService(string rootDir, string vaultRoot)
 
     public async Task RestoreAsync(string account, IEnumerable<string> fingerprint)
     {
-        RestoreEntrySet(AccountDir(account), rootDir, fingerprint);
-        await Task.CompletedTask;
+        // 恢复是"先删目标、再整树写回"，文件多时同样会冻界面，放后台线程执行。
+        var rels = fingerprint as string[] ?? fingerprint.ToArray();
+        var srcRoot = AccountDir(account);
+        await Task.Run(() => RestoreEntrySet(srcRoot, rootDir, rels));
     }
 
     /// <summary>
@@ -371,17 +395,23 @@ public sealed class VaultService(string rootDir, string vaultRoot)
     {
         var entries = ReadEntries(account);
         if (entries == null || entries.Count == 0) return false;
-        foreach (var e in entries)
+        // 每条要算两遍 SHA-256（存档 + live），文件多时是重活，同样必须离开 UI 线程。
+        return await Task.Run(() =>
         {
-            var vaultFile = Path.Combine(AccountDir(account), e.Rel);
-            var liveFile = Path.Combine(rootDir, e.Rel);
-            if (!File.Exists(vaultFile) || !File.Exists(liveFile)) return false;
-            if (!string.Equals(
-                    CarrierProfiler.HashFile(vaultFile), CarrierProfiler.HashFile(liveFile),
-                    StringComparison.OrdinalIgnoreCase))
-                return false;
-        }
-        return await Task.FromResult(true);
+            foreach (var e in entries)
+            {
+                // 缓存条目既不在新快照里、也会被客户端不断改写，跳过（兼容收录过它们的历史快照）。
+                if (IsVolatileCachePath(e.Rel)) continue;
+                var vaultFile = Path.Combine(AccountDir(account), e.Rel);
+                var liveFile = Path.Combine(rootDir, e.Rel);
+                if (!File.Exists(vaultFile) || !File.Exists(liveFile)) return false;
+                if (!string.Equals(
+                        CarrierProfiler.HashFile(vaultFile), CarrierProfiler.HashFile(liveFile),
+                        StringComparison.OrdinalIgnoreCase))
+                    return false;
+            }
+            return true;
+        });
     }
 
     /// <summary>

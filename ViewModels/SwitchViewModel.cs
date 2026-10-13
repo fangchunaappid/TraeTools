@@ -521,7 +521,8 @@ public partial class SwitchViewModel : ViewModelBase
             if (client != null && client.IsRunning())
             {
                 AppendLog("检测到客户端运行中，正在自动退出（解除登录态文件占用）…");
-                client.KillAll();
+                // KillAll 内部是 12s 优雅等待 + 8s 强杀等待的 Thread.Sleep 轮询，同步调用会把界面冻住十几秒。
+                await Task.Run(() => client.KillAll());
                 await Task.Delay(500);
             }
 

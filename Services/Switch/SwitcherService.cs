@@ -32,7 +32,9 @@ public sealed class SwitcherService(string rootDir, VaultService vault, IClientC
     public async Task SwitchToAsync(string account, IEnumerable<string> fingerprint)
     {
         var rels = fingerprint.ToArray();
-        client.KillAll();
+        // 关闭客户端最坏要等 12s 优雅超时 + 8s 强杀超时（内部是 Thread.Sleep 轮询），
+        // 同步执行会把 UI 线程整段冻住，必须放后台线程。
+        await Task.Run(() => client.KillAll());
 
         // 1) 当前 live 状态快照到临时目录（回滚用），目录条目整树快照
         var rollback = Path.Combine(Path.GetTempPath(), "traeswitch_rollback_" + Guid.NewGuid().ToString("N"));
@@ -77,7 +79,8 @@ public sealed class SwitcherService(string rootDir, VaultService vault, IClientC
         string account, IEnumerable<string> fingerprint, Action<TimeSpan>? progress = null)
     {
         var rels = fingerprint.ToArray();
-        client.KillAll();
+        // 同上：关闭客户端是长时间阻塞操作，放后台线程，别冻 UI。
+        await Task.Run(() => client.KillAll());
 
         var rollback = Path.Combine(Path.GetTempPath(), "traeswitch_rollback_" + Guid.NewGuid().ToString("N"));
         foreach (var rel in rels)
@@ -160,22 +163,21 @@ public sealed class SwitcherService(string rootDir, VaultService vault, IClientC
         }
 
         if (kind == SwitchOutcomeKind.RolledBack)
-            DoRollback(rollback, rels);
+            await DoRollbackAsync(rollback, rels);
 
         return new SwitchOutcome(kind, rollback, rels, account, detail);
     }
 
     /// <summary>守护判定为 NeedsConfirm 且用户选择回滚时调用。</summary>
-    public Task RollbackSwitchAsync(SwitchOutcome outcome)
+    public async Task RollbackSwitchAsync(SwitchOutcome outcome)
     {
         if (outcome.RollbackDir is { } dir)
-            DoRollback(dir, outcome.Rels);
-        return Task.CompletedTask;
+            await DoRollbackAsync(dir, outcome.Rels);
     }
 
-    private void DoRollback(string rollback, string[] rels)
+    private async Task DoRollbackAsync(string rollback, string[] rels)
     {
-        try { client.KillAll(); } catch { /* 忽略 */ }
+        try { await Task.Run(() => client.KillAll()); } catch { /* 忽略 */ }
         Rollback(rollback, rels);
         try { client.Launch(); } catch { /* 尽力恢复启动 */ }
     }

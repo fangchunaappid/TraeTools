@@ -17,11 +17,22 @@ public static class CarrierProfiler
         "Shared Dictionary", "logs", "Backups"
     ];
 
-    /// <summary>扫描 root，返回 相对路径(反斜杠→正斜杠)→小写 SHA-256。</summary>
-    public static Dictionary<string, string> HashTree(string root, IEnumerable<string> excludeDirs)
+    private static readonly HashSet<string> DefaultExcludes =
+        new(DefaultExcludeDirs, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>目录名是否属于默认跳过集合（缓存、日志等，与账号登录态无关）。</summary>
+    public static bool IsExcludedDir(string name) => DefaultExcludes.Contains(name);
+
+    /// <summary>
+    /// 递归枚举 root 下全部文件（只返回文件，不返回目录），并跳过 <see cref="DefaultExcludeDirs"/> 中的目录。
+    /// 载体快照与目录扫描共用这一个枚举器：Chromium 的 Cache/GPUCache 等子树动辄上千个文件、
+    /// 数十 MB，却与登录态完全无关，一旦被快照收录，建档会长时间冻界面、切换还要把它们原样写回去。
+    /// </summary>
+    public static IEnumerable<string> EnumerateTree(string root, IEnumerable<string>? excludeDirs = null)
     {
-        var ex = new HashSet<string>(excludeDirs, StringComparer.OrdinalIgnoreCase);
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var ex = excludeDirs == null
+            ? DefaultExcludes
+            : new HashSet<string>(excludeDirs, StringComparer.OrdinalIgnoreCase);
         var stack = new Stack<string>();
         stack.Push(root);
         while (stack.Count > 0)
@@ -29,19 +40,24 @@ public static class CarrierProfiler
             var dir = stack.Pop();
             foreach (var entry in Directory.EnumerateFileSystemEntries(dir))
             {
-                bool isDir = Directory.Exists(entry);
-                var name = Path.GetFileName(entry);
-                if (isDir)
+                if (Directory.Exists(entry))
                 {
-                    if (!ex.Contains(name)) stack.Push(entry);
+                    if (!ex.Contains(Path.GetFileName(entry))) stack.Push(entry);
                 }
                 else
                 {
-                    var rel = Path.GetRelativePath(root, entry).Replace('\\', '/');
-                    result[rel] = HashFile(entry);
+                    yield return entry;
                 }
             }
         }
+    }
+
+    /// <summary>扫描 root，返回 相对路径(反斜杠→正斜杠)→小写 SHA-256（同样跳过 <paramref name="excludeDirs"/>）。</summary>
+    public static Dictionary<string, string> HashTree(string root, IEnumerable<string> excludeDirs)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var f in EnumerateTree(root, excludeDirs))
+            result[Path.GetRelativePath(root, f).Replace('\\', '/')] = HashFile(f);
         return result;
     }
 
