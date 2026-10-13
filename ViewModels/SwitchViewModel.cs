@@ -52,26 +52,42 @@ public partial class SwitchViewModel : ViewModelBase
         Steps.Add(new SwitchStep { Index = 5, Title = "判定结果", Description = "校验登录态", Status = "idle" });
 
         LoadAccounts();
-        EnsureFingerprint();   // 指纹为空时自动检测并回填，避免「未配置载体指纹」卡死建档/切换
+        EnsureFingerprint();   // 指纹为空/过期时自动重探回填，避免「未配置载体指纹」卡死建档/切换
+        ReportAutoFix();       // 旧版 TRAE SOLO CN 配置被自动修正时提示一次
+    }
+
+    /// <summary>settings.json 自愈（旧路径/旧进程名/旧指纹）只提示一次，避免用户以为"改了没生效"。</summary>
+    private void ReportAutoFix()
+    {
+        var note = MainViewModel.SwitchSettings?.ConsumeAutoFixNote();
+        if (!string.IsNullOrEmpty(note)) AppendLog(note);
     }
 
     /// <summary>
-    /// 载体指纹（Fingerprint）为空时，自动检测客户端登录态载体并写入 settings.json。
-    /// 原版需手动用 Probe 配置（Phase 0），合并版没有该入口 → 用户会在此卡死（issue #20）。
+    /// 载体指纹为空、或**过期**（缺 state.vscdb 及其 -wal/-shm/.backup 边车）时，
+    /// 重置为固定 15 项白名单并落盘。
+    /// 旧版把"目录扫描出来的窄清单"固化进 settings.json，之后改白名单也不生效（P0-3 根因）；
+    /// 这里每次进本页自愈一次，老用户升级后无需手动删配置文件。
     /// </summary>
     private void EnsureFingerprint()
     {
         var settings = MainViewModel.SwitchSettings;
-        if (settings?.Data == null || settings.Data.Fingerprint.Count > 0) return;
-        var detected = TraeSwitch.Services.CarrierDefaults.DetectFingerprint();
+        if (settings?.Data == null) return;
+        if (!CarrierDefaults.IsStaleFingerprint(settings.Data.Fingerprint)) return;
+
+        var detected = CarrierDefaults.DetectFingerprint();
         if (detected.Count == 0)
         {
-            AppendLog("未检测到客户端登录态载体（可能未安装 Trae 客户端或目录为空），请确认后再建档/切换");
+            AppendLog("未检测到客户端登录态载体（可能未安装 Trae CN 客户端），请确认后再建档/切换");
             return;
         }
+        if (settings.Data.Fingerprint.Count > 0)
+            AppendLog("已固化的载体指纹不完整（缺 state.vscdb 或其边车），已重置为固定白名单");
+
+        settings.Data.Fingerprint.Clear();
         settings.Data.Fingerprint.AddRange(detected);
         try { settings.Save(); } catch { /* 保存失败下次再写 */ }
-        AppendLog($"未配置载体指纹 → 已自动检测并写入 {detected.Count} 项：{string.Join("、", detected)}");
+        AppendLog($"载体指纹已就绪：{detected.Count} 项（当前实际存在 {CarrierDefaults.CountPresent(settings.Data.RootDir)} 项）");
         CarrierCount = settings.Data.Fingerprint.Count;
         LoadAccounts();
     }
@@ -119,7 +135,7 @@ public partial class SwitchViewModel : ViewModelBase
             }
             var files = await win.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
-                Title = "选择 Trae 客户端程序（TRAE SOLO CN.exe）",
+                Title = "选择 Trae 客户端程序（Trae CN.exe）",
                 AllowMultiple = false,
                 FileTypeFilter = new[]
                 {
@@ -366,17 +382,23 @@ public partial class SwitchViewModel : ViewModelBase
             {
                 case SwitchOutcomeKind.Active:
                     Steps[4].Status = "ok";
-                    AppendLog($"切换成功：已进入 {name}（会话写入确认）");
+                    AppendLog($"切换成功：已进入 {name}（{outcome.Detail}）");
                     SyncActiveAccount(name);
+                    // P0-5：切换成功后立即把 live 的 storage.json 回写该账号 vault，
+                    // 存下服务端刚轮换的新 refresh token，避免下次切号因旧凭据已作废而 401。
+                    if (vault.SyncBackStorageToVault(name, settings.Data.Fingerprint))
+                        AppendLog($"已回写「{name}」的登录凭据到 vault（下次切号可复用新会话）");
+                    else
+                        AppendLog($"提示：未能回写「{name}」的登录凭据到 vault，该账号下次切换可能失效，建议重新登录后「建档」");
                     break;
                 case SwitchOutcomeKind.RolledBack:
                     Steps[4].Status = "warn";
-                    AppendLog($"切换失败（会话过期或客户端未启动），已自动回滚到切换前账号并重启客户端");
+                    AppendLog($"切换失败（{outcome.Detail}），已自动回滚到切换前账号并重启客户端");
                     AppendLog("处理：如需切换到该账号，请先在其上登录一次并「建档」更新会话备份");
                     break;
                 case SwitchOutcomeKind.NeedsConfirm:
                     Steps[4].Status = "warn";
-                    AppendLog("客户端已启动，但 20 秒内未观察到会话写入，无法自动判定结果。");
+                    AppendLog($"无法自动判定结果：{outcome.Detail}。");
                     AppendLog($"请人工确认：若界面已进入「{name}」，点「校验」复核；若未进入，请重新切换或先在该账号上登录建档。");
                     break;
             }
@@ -505,7 +527,7 @@ public partial class SwitchViewModel : ViewModelBase
 
             AppendLog($"开始建档：{account}…");
             int count = await vault.BackupAsync(account, settings.Data.Fingerprint);
-            bool ok = await vault.VerifyAsync(account, settings.Data.Fingerprint);
+            bool ok = await vault.VerifyAsync(account);
             AppendLog($"建档完成：{count} 个载体文件，校验 {(ok ? "通过" : "未通过")}");
             LoadAccounts();
             // 建档后自动选中新账号，用户可直接点「校验」复核，避免误报「无建档数据」（#34）
@@ -556,7 +578,7 @@ public partial class SwitchViewModel : ViewModelBase
 
             string account = best.a;
             var guid = best.v!.Value;
-            if (await vault.VerifyAsync(account, settings.Data.Fingerprint))
+            if (await vault.VerifyAsync(account))
             {
                 AppendLog($"「{account}」备份与当前会话一致，无需刷新");
                 return;

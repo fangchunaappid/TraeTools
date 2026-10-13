@@ -1,4 +1,5 @@
 using System.Text.Json;
+using TraeTools.Services.Json;
 
 namespace TraeSwitch.Services;
 
@@ -16,6 +17,26 @@ public sealed record VaultInfo(DateTime? CreatedLocal, int EntryCount);
 /// </summary>
 public sealed class VaultService(string rootDir, string vaultRoot)
 {
+    /// <summary>客户端单实例锁文件名（残留会让新实例误判"已有实例在运行"，恢复前需删除）。</summary>
+    private const string ClientLockName = "code.lock";
+
+    /// <summary>
+    /// state.vscdb 的 WAL/SHM 边车（相对数据根）。恢复主库前必须先删目标侧残留——
+    /// 客户端被强杀是常态，最新登录写入可能只在 -wal 里，不删就会回放**旧账号**数据（根因 3）。
+    /// </summary>
+    public static readonly string[] VscdbSidecarRels =
+    [
+        @"User\globalStorage\state.vscdb-wal",
+        @"User\globalStorage\state.vscdb-shm",
+    ];
+
+    /// <summary>
+    /// "必须回写"集合（P1-3）：storage.json 因每次运行都改写、无账号判别力而被排除出识别评分
+    /// （见 <see cref="IsRuntimeStateFile"/>），但它承载账号特异凭据（轮换后的 refresh token），
+    /// 切换成功后必须回写 vault 保鲜，否则同一账号第二次切换 401。
+    /// </summary>
+    public static readonly string[] MustSyncBackRels = [@"User\globalStorage\storage.json"];
+
     public string AccountDir(string account) => Path.Combine(vaultRoot, Sanitize(account));
     public string MetaPath(string account) => Path.Combine(AccountDir(account), "meta.json");
 
@@ -59,6 +80,8 @@ public sealed class VaultService(string rootDir, string vaultRoot)
         else if (File.Exists(src))
         {
             Directory.CreateDirectory(Path.GetDirectoryName(dst)!);
+            // 对称删除：先删目标再写，避免"半新半旧"（SQLite 主库尤其不能留旧文件被追加）
+            if (File.Exists(dst)) File.Delete(dst);
             File.Copy(src, dst, overwrite: true);
         }
     }
@@ -90,7 +113,7 @@ public sealed class VaultService(string rootDir, string vaultRoot)
             }
         }
         var meta = new VaultMeta(account, DateTime.UtcNow.ToString("o"), entries);
-        await File.WriteAllTextAsync(MetaPath(account), JsonSerializer.Serialize(meta, JsonOpts));
+        await File.WriteAllTextAsync(MetaPath(account), AppJsonIndented.Serialize(meta));
         return entries.Count;
     }
 
@@ -100,7 +123,7 @@ public sealed class VaultService(string rootDir, string vaultRoot)
         if (!File.Exists(MetaPath(account))) return null;
         try
         {
-            var meta = JsonSerializer.Deserialize<VaultMeta>(File.ReadAllText(MetaPath(account)));
+            var meta = AppJsonIndented.Deserialize<VaultMeta>(File.ReadAllText(MetaPath(account)));
             return meta?.Entries ?? [];
         }
         catch { return null; }
@@ -112,7 +135,7 @@ public sealed class VaultService(string rootDir, string vaultRoot)
         if (!File.Exists(MetaPath(account))) return null;
         try
         {
-            var meta = JsonSerializer.Deserialize<VaultMeta>(File.ReadAllText(MetaPath(account)));
+            var meta = AppJsonIndented.Deserialize<VaultMeta>(File.ReadAllText(MetaPath(account)));
             if (meta == null) return null;
             DateTime? created = DateTime.TryParse(meta.CreatedUtc, null,
                 System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out var t)
@@ -133,6 +156,8 @@ public sealed class VaultService(string rootDir, string vaultRoot)
     /// <summary>
     /// 运行痕迹文件：含时间戳/会话状态，每次客户端运行都会改写，与账号身份无关。
     /// 建档时间不同的两个账号这些文件哈希恰好不同，若计入判别集会稀释区分度。
+    /// 注意（P1-3）：storage.json 只在"识别归属"时不参与评分；它含账号特异凭据，
+    /// 切换成功后必须按 <see cref="MustSyncBackRels"/> 回写 vault 保鲜。
     /// </summary>
     private static bool IsRuntimeStateFile(string rel)
     {
@@ -240,18 +265,116 @@ public sealed class VaultService(string rootDir, string vaultRoot)
 
     public async Task RestoreAsync(string account, IEnumerable<string> fingerprint)
     {
-        foreach (var rel in fingerprint)
-            OverwriteEntry(AccountDir(account), rootDir, rel);
+        RestoreEntrySet(AccountDir(account), rootDir, fingerprint);
         await Task.CompletedTask;
     }
 
-    public async Task<bool> VerifyAsync(string account, IEnumerable<string> fingerprint)
+    /// <summary>
+    /// 把 srcRoot 中的 <paramref name="rels"/> 恢复回 dstRoot（切换与回滚共用），恢复前后处理两件"环境清洁"的事：
+    ///  1) <c>code.lock</c>：客户端单实例锁，残留会让新实例误判已有实例在跑；
+    ///  2) <c>state.vscdb-wal</c>/<c>-shm</c>：写回主库前先把目标侧边车删掉，否则客户端启动会回放旧账号的
+    ///     未 checkpoint 写入 —— "切了等于没切/显示未登录"的直接来源（P0-4）。
+    /// 边车的删除与存档里有没有边车无关：存档没有（干净落盘）时更要删掉 live 侧的陈旧边车。
+    /// </summary>
+    public static void RestoreEntrySet(string srcRoot, string dstRoot, IEnumerable<string> rels)
     {
-        if (!File.Exists(MetaPath(account))) return false;
-        foreach (var rel in ExpandFingerprint(rootDir, fingerprint))
+        var list = rels as string[] ?? rels.ToArray();
+
+        DeleteIfExists(Path.Combine(dstRoot, ClientLockName));
+
+        if (list.Any(IsVscdbFamily))
+            foreach (var side in VscdbSidecarRels)
+                DeleteIfExists(Path.Combine(dstRoot, side));
+
+        foreach (var rel in list)
+            OverwriteEntry(srcRoot, dstRoot, rel);
+    }
+
+    /// <summary>state.vscdb 及其全部边车（-wal/-shm/.backup）是否属于该条目。</summary>
+    private static bool IsVscdbFamily(string rel)
+        => NormalizeRel(rel).StartsWith(@"User\globalStorage\state.vscdb", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 删除文件；删除失败**不吞异常**：边车/锁删不掉时继续切换正是"切换无效"的成因，
+    /// 必须让上层中止并回滚，而不是静默带病前进。
+    /// </summary>
+    private static void DeleteIfExists(string path)
+    {
+        if (File.Exists(path)) File.Delete(path);
+    }
+
+    /// <summary>相对路径规范化（统一反斜杠）；兼容历史 meta 里用正斜杠记录的条目。</summary>
+    internal static string NormalizeRel(string rel) => rel.Replace('/', '\\');
+
+    /// <summary>
+    /// 切换成功后，把 live 的 storage.json（客户端已用可靠的刷新令牌刷新过）回写该账号 vault（P0-5）。
+    /// vault 快照若长期不更新，里面的 refresh token 会在每次成功切换后被服务端轮换/作废，
+    /// 表现为"同一账号最多只能切换成功一次"（此后 401 refresh token is invalid）。
+    /// 只回写 MUST-SYNC 集合：此刻客户端正在运行，SQLite 主库/边车处于打开状态，拷出来必然不自洽，
+    /// 不能作为新快照；storage.json 是客户端整体重写的小 JSON，可安全覆盖。
+    /// 返回是否有文件被回写；失败（被占用等）静默返回 false，由调用方提示用户重新建档。
+    /// </summary>
+    public bool SyncBackStorageToVault(string account, IEnumerable<string>? fingerprint = null)
+    {
+        try
         {
-            var vaultFile = Path.Combine(AccountDir(account), rel);
-            var liveFile = Path.Combine(rootDir, rel);
+            var allowed = fingerprint == null
+                ? null
+                : new HashSet<string>(fingerprint.Select(NormalizeRel), StringComparer.OrdinalIgnoreCase);
+            bool any = false;
+            foreach (var rel in MustSyncBackRels)
+            {
+                if (allowed is { Count: > 0 } && !allowed.Contains(NormalizeRel(rel))) continue;
+                var src = Path.Combine(rootDir, rel);
+                if (!File.Exists(src)) continue;
+                var dst = Path.Combine(AccountDir(account), rel);
+                Directory.CreateDirectory(Path.GetDirectoryName(dst)!);
+                File.Copy(src, dst, overwrite: true);
+                UpdateMetaEntry(account, rel, src);
+                any = true;
+            }
+            return any;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>刷新 meta.json 中某个载体的长度/哈希（建档时间保持不变，避免"已建档时间"被刷新冲掉）。</summary>
+    private void UpdateMetaEntry(string account, string rel, string livePath)
+    {
+        var entries = ReadEntries(account) ?? [];
+        var norm = NormalizeRel(rel);
+        var entry = new VaultEntry(norm, new FileInfo(livePath).Length, CarrierProfiler.HashFile(livePath));
+        int idx = entries.FindIndex(e => string.Equals(NormalizeRel(e.Rel), norm, StringComparison.OrdinalIgnoreCase));
+        if (idx >= 0) entries[idx] = entry;
+        else entries.Add(entry);
+
+        var created = DateTime.UtcNow.ToString("o");
+        try
+        {
+            if (File.Exists(MetaPath(account)))
+            {
+                var old = AppJsonIndented.Deserialize<VaultMeta>(File.ReadAllText(MetaPath(account)));
+                if (!string.IsNullOrWhiteSpace(old?.CreatedUtc)) created = old!.CreatedUtc;
+            }
+        }
+        catch { /* meta 损坏则用当前时间重建 */ }
+
+        File.WriteAllText(MetaPath(account), AppJsonIndented.Serialize(new VaultMeta(account, created, entries)));
+    }
+
+    /// <summary>
+    /// 校验 vault 快照是否仍与 live 一致：以 meta 记录的载体为准（= 建档时**实际存在**的文件）逐条比对哈希。
+    /// 不用 live 侧展开做基准——白名单是固定 15 项，客户端跑起来后 live 会多出建档时不存在的 -wal/-shm 边车，
+    /// 用 live 做基准会把正常状态误判成"校验未通过"。
+    /// </summary>
+    public async Task<bool> VerifyAsync(string account)
+    {
+        var entries = ReadEntries(account);
+        if (entries == null || entries.Count == 0) return false;
+        foreach (var e in entries)
+        {
+            var vaultFile = Path.Combine(AccountDir(account), e.Rel);
+            var liveFile = Path.Combine(rootDir, e.Rel);
             if (!File.Exists(vaultFile) || !File.Exists(liveFile)) return false;
             if (!string.Equals(
                     CarrierProfiler.HashFile(vaultFile), CarrierProfiler.HashFile(liveFile),
@@ -273,5 +396,4 @@ public sealed class VaultService(string rootDir, string vaultRoot)
         return name;
     }
 
-    private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 }
