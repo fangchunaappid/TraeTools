@@ -188,7 +188,7 @@ public static class DataPaths
                 // 仅当「实际新增了账号」才写回：旧目录每次启动都存在，
                 // 无条件重写会以旧序列化结构覆盖新配置（如 DPAPI 加密标记 SecretsVaultVersion 等被冲掉）。
                 if (added)
-                    File.WriteAllText(dst, dstNode.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+                    File.WriteAllText(dst, dstNode.ToJsonString(TraeTools.Services.Json.AppJsonIndented.Options));
             }
         }
         catch { /* 合并失败保留原状 */ }

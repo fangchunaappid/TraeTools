@@ -13,9 +13,11 @@ using TraeTools.Services.Avatar;
 
 namespace TraeTools.ViewModels;
 
-public partial class DashboardViewModel : ViewModelBase
-{
-    public record TrendPoint(string DateLabel, double Credits, double X, double Y, string Tooltip)
+/// <summary>
+/// 趋势图数据点（X/Y 为画布坐标）。P2-2：从 DashboardViewModel 的嵌套类型提升为顶层类型——
+/// Avalonia 编译绑定（x:DataType）无法引用嵌套类型，提升后 XAML 才能用编译绑定，NativeAOT 下才不留反射绑定。
+/// </summary>
+public record TrendPoint(string DateLabel, double Credits, double X, double Y, string Tooltip)
 {
     /// <summary>悬浮命中区宽度（=相邻点间距，用于连续覆盖无缝隙）。</summary>
     public double StepWidth { get; set; }
@@ -23,6 +25,8 @@ public partial class DashboardViewModel : ViewModelBase
     public bool IsHovered { get; set; }
 }
 
+public partial class DashboardViewModel : ViewModelBase
+{
     [ObservableProperty]
     private int _remainingCredits = 0;
 

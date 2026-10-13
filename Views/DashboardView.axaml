@@ -151,19 +151,19 @@
                                 <!-- Today marker -->
                                 <Ellipse Canvas.Left="{Binding TodayX}" Canvas.Top="{Binding TodayY}" Width="12" Height="12" Fill="White" Stroke="{StaticResource AccentBrush}" StrokeThickness="3" />
                                 <!-- Hover hit areas: contiguous coverage（宽度=步长，无缝隙，即时触发） -->
-                                <ItemsControl ItemsSource="{Binding TrendPoints}" x:CompileBindings="False">
+                                <ItemsControl ItemsSource="{Binding TrendPoints}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
                                             <Canvas Width="520" Height="200" />
                                         </ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemContainerTheme>
-                                        <ControlTheme TargetType="ContentPresenter">
+                                        <ControlTheme TargetType="ContentPresenter" x:DataType="vm:TrendPoint">
                                             <Setter Property="Canvas.Left" Value="{Binding X}" />
                                         </ControlTheme>
                                     </ItemsControl.ItemContainerTheme>
                                     <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
+                                        <DataTemplate x:DataType="vm:TrendPoint">
                                             <Border Width="{Binding StepWidth}" Height="200" Background="Transparent"
                                                     PointerEntered="TrendHoverEnter" PointerExited="TrendHoverExit">
                                                 <Canvas>

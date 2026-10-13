@@ -14,7 +14,7 @@ public partial class DashboardView : UserControl
     /// <summary>趋势点命中：即时更新悬浮冒泡（替代有延迟的原生 ToolTip）。</summary>
     private void TrendHoverEnter(object? sender, PointerEventArgs e)
     {
-        if (sender is Control c && c.DataContext is DashboardViewModel.TrendPoint p && DataContext is DashboardViewModel vm)
+        if (sender is Control c && c.DataContext is TrendPoint p && DataContext is DashboardViewModel vm)
             vm.SetTrendHover(p);
     }
 

@@ -16,10 +16,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET 9
+      # P2-2：主程序已升到 net10.0-windows（NativeAOT 前置）
+      - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "9.0.x"
+          dotnet-version: "10.0.x"
 
       - name: Build (Release)
         run: dotnet build TraeTools.csproj -c Release --nologo
@@ -28,5 +29,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: trae-tools-build
-          path: bin/Release/net9.0-windows/
+          path: bin/Release/net10.0-windows/
           if-no-files-found: error

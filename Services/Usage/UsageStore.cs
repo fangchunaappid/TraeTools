@@ -1,5 +1,6 @@
 using System.Text.Json;
 using TraeTools.Models;
+using TraeTools.Services.Json;
 
 namespace TraeTools.Services.Usage;
 
@@ -11,7 +12,6 @@ namespace TraeTools.Services.Usage;
 public static class UsageStore
 {
     private static readonly object IoLock = new();
-    private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = false };
 
     private static string PathFor(string accountId) => System.IO.Path.Combine(
         TraeTools.Services.DataPaths.DataDir, $"usage_{accountId}.jsonl");
@@ -31,7 +31,7 @@ public static class UsageStore
                     if (string.IsNullOrWhiteSpace(line)) continue;
                     try
                     {
-                        var rec = JsonSerializer.Deserialize<UsageSessionRecord>(line, JsonOpts);
+                        var rec = AppJson.Deserialize<UsageSessionRecord>(line);
                         if (rec != null && !string.IsNullOrEmpty(rec.SessionId)) list.Add(rec);
                     }
                     catch { /* 跳过损坏行 */ }
@@ -72,7 +72,7 @@ public static class UsageStore
                 using var sw = File.AppendText(path);
                 foreach (var r in toAppend)
                 {
-                    sw.WriteLine(JsonSerializer.Serialize(r, JsonOpts));
+                    sw.WriteLine(AppJson.Serialize(r));
                 }
             }
             catch { /* 写入失败不影响本次展示 */ }

@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using TraeTools.Services.Json;
 
 namespace TraeCheckin;
 
@@ -109,7 +110,7 @@ public class GitHubApiClient
     {
         try
         {
-            var body = JsonSerializer.Serialize(new { client_id = ClientId, scope = "repo workflow" });
+            var body = AppJson.Serialize(new GitHubDeviceCodeRequest { ClientId = ClientId, Scope = "repo workflow" });
             using var req = new HttpRequestMessage(HttpMethod.Post, "https://github.com/login/device/code");
             req.Content = new StringContent(body, Encoding.UTF8, "application/json");
             using var resp = await _http.SendAsync(req);
@@ -119,7 +120,7 @@ public class GitHubApiClient
                 LastError = $"申请设备码失败：HTTP {(int)resp.StatusCode} {json}";
                 return null;
             }
-            return JsonSerializer.Deserialize<GitHubDeviceCode>(json);
+            return AppJson.Deserialize<GitHubDeviceCode>(json);
         }
         catch (Exception ex) { LastError = ex.Message; return null; }
     }
@@ -129,11 +130,11 @@ public class GitHubApiClient
     {
         try
         {
-            var body = JsonSerializer.Serialize(new
+            var body = AppJson.Serialize(new GitHubTokenPollRequest
             {
-                client_id = ClientId,
-                device_code = deviceCode,
-                grant_type = "urn:ietf:params:oauth:grant-type:device_code"
+                ClientId = ClientId,
+                DeviceCode = deviceCode,
+                GrantType = "urn:ietf:params:oauth:grant-type:device_code"
             });
             using var req = new HttpRequestMessage(HttpMethod.Post, "https://github.com/login/oauth/access_token");
             req.Content = new StringContent(body, Encoding.UTF8, "application/json");
@@ -349,7 +350,7 @@ public class GitHubApiClient
             }
 
             var encrypted = GitHubSecret.Encrypt(secretValue, key);
-            var body = JsonSerializer.Serialize(new { encrypted_value = encrypted, key_id = keyId });
+            var body = AppJson.Serialize(new GitHubSecretPayload { EncryptedValue = encrypted, KeyId = keyId });
             using var resp = await SendApiAsync(HttpMethod.Put, $"/repos/{login}/{SourceRepo}/actions/secrets/{secretName}", token, body);
             if (resp.IsSuccessStatusCode) return true;
             LastError = $"写入 secret 失败：HTTP {(int)resp.StatusCode}";
@@ -392,7 +393,7 @@ public class GitHubApiClient
     {
         try
         {
-            var body = JsonSerializer.Serialize(new { enabled = true, allowed_actions = "all" });
+            var body = AppJson.Serialize(new GitHubActionsPermissionPayload());
             using var resp = await SendApiAsync(HttpMethod.Put, $"/repos/{login}/{SourceRepo}/actions/permissions", token, body);
             if (resp.IsSuccessStatusCode) return true;
             LastError = "开启 GitHub Actions 失败：HTTP " + (int)resp.StatusCode
@@ -414,7 +415,7 @@ public class GitHubApiClient
     /// <summary>手动触发一次 workflow（用于立即验证）。</summary>
     public async Task<bool> DispatchWorkflowAsync(string token, string login, long workflowId)
     {
-        var body = JsonSerializer.Serialize(new { @ref = "main" });
+        var body = AppJson.Serialize(new GitHubWorkflowDispatchPayload());
         using var resp = await SendApiAsync(HttpMethod.Post, $"/repos/{login}/{SourceRepo}/actions/workflows/{workflowId}/dispatches", token, body);
         if (resp.IsSuccessStatusCode || resp.StatusCode == System.Net.HttpStatusCode.NoContent) return true;
         LastError = $"触发 workflow 失败：HTTP {(int)resp.StatusCode}";

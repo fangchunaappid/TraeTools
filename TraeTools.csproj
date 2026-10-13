@@ -1,12 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net9.0-windows</TargetFramework>
-    <UseWindowsForms>true</UseWindowsForms>
+    <!-- P2-2：升到 net10.0-windows（SDK 10.0.401 已装），为 PublishAot 做准备 -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <!-- P2-1：不再使用 WindowsForms（NativeAOT 硬阻塞之一）；登录窗口已拆到独立 TraeTools.LoginHost 项目 -->
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\avalonia-logo.ico</ApplicationIcon>
+    <!-- P2-2：Avalonia 编译绑定。反射绑定（ReflectionBinding）在 NativeAOT/裁剪下不可用，
+         全部视图已带 x:DataType，#DashboardView 的悬浮命中区也从嵌套类型提升为顶层类型。
+         默认开启后新增页面若出现绑定编译错误，需补 x:DataType 而不是回退反射绑定。 -->
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <AssemblyTitle>TraeTools</AssemblyTitle>
     <Product>TraeTools</Product>
     <!-- 以下 Version/InformationalVersion 由 ReadVersionFromJson 目标在生成 AssemblyInfo 前从 version.json 自动读取并覆盖。
@@ -19,11 +24,23 @@
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <!-- P2-3 正规瘦身：full 裁剪（实测单文件 49.12MB → 23.46MB，启动正常）。
+         前置条件已就绪：JSON 全部走源生成（AppJson/AppJsonIndented，无反射序列化）、
+         XAML 全部走编译绑定、ViewLocator 改为显式映射 —— PublishTrimmed/PublishAot 分析 0 条 IL2026/IL3050。 -->
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>full</TrimMode>
+    <!-- P2-2 NativeAOT（opt-in，默认关闭）。本机实测：0 条 AOT 告警，AOT 产物可正常启动并建窗。
+         AOT 产物**不是单文件**，libSkiaSharp / av_libglesv2 / e_sqlite3 / libHarfBuzzSharp / libsodium
+         必须与 exe 同目录；分发已改为 zip 整包（release.yml 产出 TraeTools-win-x64.zip），
+         应用内更新器（UpdaterService）已改为「下载 zip → SHA-256 校验 → 解包 → 整套文件原子替换 → 重启」。
+         启用方式：dotnet publish TraeTools.csproj -c Release -r win-x64 -p:EnableAot=true -o publish_aot -->
+    <EnableAot Condition="'$(EnableAot)' == ''">false</EnableAot>
+    <PublishAot Condition="'$(EnableAot)' == 'true'">true</PublishAot>
   </PropertyGroup>
-  <!-- 仅 LoginHostForm/WebViewLoginHost 用显式 using 引用 WinForms，全局 using 会造成与 Avalonia 命名冲突 -->
+  <!-- P2-1：登录宿主是独立项目（有自己的 csproj/bin/obj），主程序不编译、不打包它的源码 -->
   <ItemGroup>
-    <Using Remove="System.Windows.Forms" />
-    <Using Remove="System.Drawing" />
+    <Compile Remove="TraeTools.LoginHost\**" />
+    <None Remove="TraeTools.LoginHost\**" />
   </ItemGroup>
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
@@ -61,7 +78,9 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.*" />
     <PackageReference Include="Sodium.Core" Version="1.4.1" />
-    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
+    <!-- DPAPI：原先由 Microsoft.WindowsDesktop.App（UseWindowsForms）间接提供，拆掉 WinForms 后需显式引用 -->
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.*" />
+    <!-- P2-1：Microsoft.Web.WebView2（NativeAOT 硬阻塞之二）已随登录窗口移到 TraeTools.LoginHost 项目 -->
   </ItemGroup>
 </Project>
 

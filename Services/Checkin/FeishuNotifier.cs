@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using TraeTools.Services.Json;
 
 namespace TraeCheckin;
 
@@ -17,7 +18,7 @@ public static class FeishuNotifier
         if (string.IsNullOrWhiteSpace(webhook)) return false;
         try
         {
-            var body = JsonSerializer.Serialize(new { msg_type = "text", content = new { text } });
+            var body = AppJson.Serialize(new FeishuTextMessage { Content = new FeishuTextContent { Text = text } });
             using var req = new HttpRequestMessage(HttpMethod.Post, webhook);
             req.Content = new StringContent(body, Encoding.UTF8, "application/json");
             using var resp = await Http.SendAsync(req);

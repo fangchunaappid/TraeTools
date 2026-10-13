@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using TraeTools.Services.Json;
 
 namespace TraeCheckin;
 
@@ -164,7 +165,7 @@ public class TraeApiClient
                 LastError = $"HTTP {(int)resp.StatusCode} 空响应";
                 return null;
             }
-            var obj = JsonSerializer.Deserialize<T>(json);
+            var obj = AppJson.Deserialize<T>(json);
             if (obj == null) LastError = "无法解析响应";
             return obj;
         }
