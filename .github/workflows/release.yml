@@ -19,21 +19,40 @@ jobs:
           fetch-depth: 0          # 拉取完整历史与所有 tag，供生成"上一版本→本版本"更新差异
           fetch-tags: true
 
-      - name: Setup .NET 9
+      # P2-2：主程序已升到 net10.0-windows
+      - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "9.0.x"
+          dotnet-version: "10.0.x"
 
-      # 发布单文件自包含 exe：应用内更新器（UpdaterService）会下载名为 TraeTools.exe 的资产，
-      # 直接覆盖本地 exe 后重启，因此必须产出可独立运行的单文件程序
-      - name: Publish (self-contained single-file win-x64)
-        run: dotnet publish TraeTools.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
+      # P2-4：更新分发包改为「NativeAOT 目录版整包 zip」。
+      # NativeAOT 产物不是单文件：libSkiaSharp / av_libglesv2 / e_sqlite3 / libHarfBuzzSharp /
+      # libsodium 必须与 exe 同目录，只替换 exe 会得到"缺 DLL 打不开"的残废程序。
+      # 应用内更新器（UpdaterService）现在下载 `TraeTools-win-x64.zip` → 校验 SHA-256 → 解包 →
+      # 整套文件原子替换 → 重启；zip 压缩也抵消了 AOT 原生库带来的体积增长。
+      - name: Publish main (NativeAOT directory form)
+        run: dotnet publish TraeTools.csproj -c Release -r win-x64 --self-contained true -p:EnableAot=true -o publish_aot
 
-      - name: Zip distribution
-        shell: powershell
+      # 兼容引导包：历史客户端内的旧更新器只会下载名为 `TraeTools.exe` 的资产并替换自身。
+      # 提供单文件自包含版（csproj 已开 PublishTrimmed=full，约 23MB），老客户端可一次性升到新版，
+      # 之后其内置的新更新器会改走上面的 zip 整包。
+      - name: Publish main (single-file bootstrap, legacy updater compatible)
+        run: dotnet publish TraeTools.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o publish
+
+      # P2-1：登录宿主（WinForms + WebView2）是独立进程，不参与主程序的 NativeAOT，
+      # 因此单独发布并随压缩包/Release 一起分发；缺失时主程序自动回退到"手动粘贴 Token"。
+      - name: Publish login host (separate process, not AOT)
+        run: dotnet publish TraeTools.LoginHost/TraeTools.LoginHost.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish_aot
+
+      - name: Zip distribution (NativeAOT package, no PDBs)
+        # 必须用 pwsh：Windows PowerShell 5.1 的 Compress-Archive 会把条目名里的目录分隔符写成
+        # 反斜杠（实测 `a\b\z.pdb`），依赖"zip 内路径用 /"的解包器/校验器可能踩坑。
+        shell: pwsh
         run: |
-          Compress-Archive -Path publish\* -DestinationPath TraeTools-win-x64.zip -Force
-          Get-ChildItem -Path publish, TraeTools-win-x64.zip | Select-Object Name, Length
+          Copy-Item publish_aot\TraeTools.LoginHost.exe publish\ -Force
+          Get-ChildItem -Path publish_aot -Recurse -Include *.pdb | Remove-Item -Force
+          Compress-Archive -Path publish_aot\* -DestinationPath TraeTools-win-x64.zip -Force
+          Get-ChildItem -Path publish, publish_aot, TraeTools-win-x64.zip | Select-Object Name, Length
 
       # 自动生成更新摘要：取「版本号不大于当前版本」的最近一个 v* tag，
       # 汇总其到本版本之间的全部提交（跳过 merge 提交）。
@@ -61,8 +80,9 @@ jobs:
           {
             echo "TraeTools ${GITHUB_REF_NAME}"
             echo ""
-            echo "- 单文件自包含 Windows x64 程序（无需额外安装 .NET 运行时）"
-            echo "- 应用内「检查更新」会下载本 Release 的 \`TraeTools.exe\` 自动替换升级"
+            echo "- Windows x64：\`TraeTools-win-x64.zip\`（NativeAOT 整包，解压运行，无需安装 .NET 运行时）"
+            echo "- 应用内「检查更新」会下载本 Release 的 \`TraeTools-win-x64.zip\`，校验后自动替换整套文件并重启"
+            echo "- \`TraeTools.exe\` 为单文件引导包，仅用于老版本客户端首次升级"
             echo ""
             if [ -n "${PREV}" ]; then
               echo "## 更新差异（${PREV} → ${GITHUB_REF_NAME}）"
@@ -83,5 +103,6 @@ jobs:
           body_path: release_notes.md
           files: |
             publish/TraeTools.exe
+            publish/TraeTools.LoginHost.exe
             TraeTools-win-x64.zip
           generate_release_notes: false

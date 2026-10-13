@@ -814,6 +814,8 @@ public partial class SettingsViewModel : ViewModelBase
             }
             var destDir = Path.GetDirectoryName(currentExe)!;
 
+            // 更新包先下到独立临时目录（不污染安装目录），校验通过后再解到安装目录内的暂存目录
+            var pkgDir = Path.Combine(Path.GetTempPath(), "TraeTools_update_" + Guid.NewGuid().ToString("N"));
             PushStatus = "开始下载新版…（请稍候）";
             try
             {
@@ -821,10 +823,33 @@ public partial class SettingsViewModel : ViewModelBase
                 {
                     if (pct / 10 != _lastUpdatePct) { _lastUpdatePct = pct / 10; PushStatus = $"下载 {pct}%…"; }
                 });
-                var update = await Task.Run(() => UpdaterService.DownloadAsync(rel.ExeUrl, destDir, p));
+                var pkg = await Task.Run(() => UpdaterService.DownloadAsync(rel.AssetUrl, pkgDir, rel.AssetName, p));
+
+                if (!UpdaterService.VerifySha256(pkg, rel.Sha256Hex))
+                {
+                    PushStatus = "更新包校验失败（SHA-256 不一致），已中止更新，请稍后重试。";
+                    try { Directory.Delete(pkgDir, recursive: true); } catch { /* 清理失败忽略 */ }
+                    return;
+                }
+
+                string staging;
+                if (rel.IsZip)
+                {
+                    PushStatus = "正在解包更新…";
+                    staging = UpdaterService.PreparePackage(pkg, destDir);
+                }
+                else
+                {
+                    // 兼容只发单文件 exe 的历史 Release：造一个只含 exe 的暂存目录，走同一套替换逻辑
+                    staging = Path.Combine(destDir, ".~update");
+                    if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+                    Directory.CreateDirectory(staging);
+                    File.Move(pkg, Path.Combine(staging, UpdaterService.AppExeName), overwrite: true);
+                }
+
                 PushStatus = "下载完成：即将退出并自动替换安装。";
-                UpdaterService.ApplyInBackground(update, currentExe);
-                // 必须彻底退出进程以释放目标 exe 文件锁，否则后台脚本 copy 永远失败
+                UpdaterService.ApplyInBackground(staging, destDir);
+                // 必须彻底退出进程以释放目标 exe 文件锁，否则后台脚本替换永远失败
                 await Task.Delay(400);
                 Environment.Exit(0);
             }
