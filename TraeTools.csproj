@@ -42,6 +42,14 @@
     <Compile Remove="TraeTools.LoginHost\**" />
     <None Remove="TraeTools.LoginHost\**" />
   </ItemGroup>
+  <!-- Android 端同样是独立项目（有自己的 csproj/bin/obj）。SDK 的 Compile（**/*.cs）、
+       None（**/*）与 Avalonia 的 AvaloniaXaml（**/*.axaml）默认通配符都会向下递归，
+       若不排除，主程序会把 Android 源码一并编译，导致 x:Class 重复与 Android 命名空间无法解析。 -->
+  <ItemGroup>
+    <Compile Remove="Android\**" />
+    <None Remove="Android\**" />
+    <AvaloniaXaml Remove="Android\**" />
+  </ItemGroup>
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
     <AvaloniaResource Include="Styles\**" />

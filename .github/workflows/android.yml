@@ -1,0 +1,36 @@
+name: Android
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Install Android workload
+        run: dotnet workload install android
+
+      - name: Build Android (Release)
+        run: dotnet build Android/TraeTools.Android.csproj -c Release --nologo
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: trae-tools-android-apk
+          path: Android/bin/Release/net10.0-android/*.apk
+          if-no-files-found: error
