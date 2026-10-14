@@ -1,0 +1,172 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    ============================================================================
+     TraeTools for Android —— 独立平台工程
+    ============================================================================
+     本工程**不改动仓库里任何 Windows 侧文件**：
+       · 共享业务代码（Models / Services / ViewModels / Views 的六个页面 /
+         Styles / Assets / ViewLocator）通过 <Compile Include="..\..."> 链接进来，
+         单一真源仍在仓库根目录，不存在第二份拷贝；
+       · Windows 专属文件（TraeTools.csproj / Program.cs / App.axaml(.cs) /
+         Views\MainWindow.* / Views\*Window.* / TraeTools.LoginHost\** /
+         Services\DataPaths.cs / Services\Checkin\AutoStartManager.cs /
+         Services\Login\** / ViewModels\UiHost.cs）一律排除在本工程之外，
+         由 Android\ 下的平台实现顶替（见各文件顶部注释）。
+     因此根目录的 `dotnet build` 行为、release.yml 产物、AOT/裁剪配置全部不受影响。
+
+     目录结构：
+       Android/
+         TraeTools.Android.csproj   本文件
+         App.axaml(.cs)             Android Application（单视图生命周期入口）
+         Platform/                  平台基础设施：Keystore 加密 / 路径无关的日志 /
+                                    崩溃捕获 / 浏览器拉起 / Activity
+         Services/                  DataPaths、AutoStartManager 的 Android 实现
+         ViewModels/                UiHost 的 Android 实现
+         Views/                     MainView（单视图外壳）+ 5 个对话框 + 覆盖层宿主
+         Properties/AndroidManifest.xml
+         Resources/                 应用图标 / 主题 / 配色
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <!-- 必须与根工程同名：App.axaml 里 <StyleInclude Source="avares://TraeTools/Styles/AppTheme.axaml" />
+         与 MainWindow 用到的 avares://TraeTools/Assets/... 都按程序集名解析资源 -->
+    <AssemblyName>TraeTools</AssemblyName>
+    <RootNamespace>TraeTools</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <Deterministic>true</Deterministic>
+    <NoWarn>CA1416;XA0121;CS0436</NoWarn>
+  </PropertyGroup>
+
+  <!-- ============ 版本号单一真源：仍读仓库根的 version.json ============
+       必须在「求值期」（普通 PropertyGroup，而非 Target 内）读取：
+       .NET for Android 生成 AndroidManifest（versionName）发生在很靠前的阶段，
+       若只在 Target 里赋值，APK 清单会停在静态兜底值，与 App 内「关于」显示的版本互相矛盾。 -->
+  <PropertyGroup>
+    <_VJsonRaw Condition="Exists('$(MSBuildProjectDirectory)\..\version.json')">$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\..\version.json'))</_VJsonRaw>
+    <_VJsonVer>$([System.Text.RegularExpressions.Regex]::Match('$(_VJsonRaw)', '&quot;version&quot;\s*:\s*&quot;([^&quot;]+)&quot;').Groups[1].Value)</_VJsonVer>
+    <Version Condition="'$(_VJsonVer)' != ''">$(_VJsonVer)</Version>
+    <Version Condition="'$(_VJsonVer)' == ''">1.0.0</Version>
+    <InformationalVersion Condition="'$(_VJsonVer)' != ''">$(_VJsonVer)</InformationalVersion>
+    <InformationalVersion Condition="'$(_VJsonVer)' == ''">1.0.0</InformationalVersion>
+  </PropertyGroup>
+
+  <!-- ============ Android 专属 ============ -->
+  <PropertyGroup>
+    <!-- Android 8.0（API 26）：Avalonia 12 Android 后端的下限，也覆盖绝大多数在用机型 -->
+    <SupportedOSPlatformVersion>26</SupportedOSPlatformVersion>
+    <!-- 包名与 versionCode 是应用的永久身份；如要发布到自己的账号，请就地改成自己的标识 -->
+    <ApplicationId>com.traetools.android</ApplicationId>
+    <!-- android:versionName —— 与 version.json 同源，否则「系统-应用信息」与 App 内「关于」会互相矛盾 -->
+    <ApplicationDisplayVersion Condition="'$(_VJsonVer)' != ''">$(_VJsonVer)</ApplicationDisplayVersion>
+    <ApplicationDisplayVersion Condition="'$(_VJsonVer)' == ''">1.0.0</ApplicationDisplayVersion>
+    <!-- android:versionCode —— 必须严格单调递增，否则无法覆盖安装 -->
+    <ApplicationVersion>1</ApplicationVersion>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+
+    <!-- 只打包 arm64-v8a / armeabi-v7a 两套 ABI 原生库。
+         .NET Android 默认把 x86 / x86_64 也一起塞进 APK，而 Android 模拟器之外几乎不存在
+         x86 真机 —— 保留它们会让安装包凭空大一倍。需要装模拟器调试时，
+         临时在命令行加 -p:RuntimeIdentifiers=android-arm64;android-arm;android-x64 即可。 -->
+    <RuntimeIdentifiers>android-arm64;android-arm</RuntimeIdentifiers>
+
+    <!-- 关闭 AOT / 链接器 / 裁剪：.NET for Android 在 Release 下默认做 LLVM AOT，
+         而本项目仍有反射路径（SQLitePCLRaw provider 初始化、DiagnosticsSupport 等），
+         AOT 下会抛 MissingRuntimeArtifactException（表现为「启动即闪退」）。
+         本应用是网络 IO 型工具，AOT 收益有限，稳定性优先。 -->
+    <RunAOTCompilation>false</RunAOTCompilation>
+    <AOTAssemblies>false</AOTAssemblies>
+    <AndroidLinkMode>None</AndroidLinkMode>
+    <PublishTrimmed>false</PublishTrimmed>
+    <!-- Android 不支持单文件发布 -->
+    <PublishSingleFile>false</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+  </PropertyGroup>
+
+  <!-- ============================================================================
+       摘掉 .NET Android SDK 注入的隐式全局 using
+
+       这些命名空间会渗入**所有**被编译的文件（包括链接进来的共享源码），并与
+       Avalonia 的类型重名，在共享代码里制造 CS0104 二义性错误，例如：
+         Android.Widget.Button      vs Avalonia.Controls.Button
+         Android.App.Notification   vs Avalonia.Controls.Notifications.Notification
+         Android.App.Application    vs Avalonia.Application
+       共享源码不能改（这是本工程的前提），所以在这里统一摘掉；
+       Android\ 下自己的文件按需显式 using 即可。
+       ============================================================================ -->
+  <ItemGroup>
+    <Using Remove="Android.App" />
+    <Using Remove="Android.Widget" />
+    <Using Remove="Android.OS" />
+    <Using Remove="Android.Content" />
+    <Using Remove="Android.Graphics" />
+    <Using Remove="Android.Views" />
+    <Using Remove="Android.Text" />
+    <Using Remove="Android.Runtime" />
+    <Using Remove="Java.Lang" />
+    <Using Remove="Java.Util" />
+  </ItemGroup>
+
+  <!-- ============================================================================
+       链接共享源码（只读复用，仓库根目录下的文件一个都不改）
+       Link 元数据不可省：仓库根目录不在本工程目录树内，必须显式给出逻辑路径，
+       否则 avares:// 资源路径会变成带 "..\" 的形式而找不到。
+       ============================================================================ -->
+  <ItemGroup>
+    <Compile Include="..\Models\**\*.cs"
+             Link="Shared\Models\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\ViewModels\**\*.cs"
+             Exclude="..\ViewModels\UiHost.cs"
+             Link="Shared\ViewModels\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\ViewLocator.cs" Link="Shared\ViewLocator.cs" />
+
+    <!-- Services：排除三个 Windows 专属实现，它们由 Android\Services\ 下的同名类型顶替 -->
+    <Compile Include="..\Services\**\*.cs"
+             Exclude="..\Services\DataPaths.cs;..\Services\Checkin\AutoStartManager.cs;..\Services\Login\**"
+             Link="Shared\Services\%(RecursiveDir)%(Filename)%(Extension)" />
+
+    <!-- 六个页面视图（CheckinView / CloudView / DashboardView / SettingsView / SwitchView / UsageView） -->
+    <Compile Include="..\Views\**\*.axaml.cs"
+             Exclude="..\Views\MainWindow.axaml.cs;..\Views\*Window.axaml.cs"
+             Link="Views\%(RecursiveDir)%(Filename)%(Extension)" />
+    <AvaloniaXaml Include="..\Views\**\*.axaml"
+                  Exclude="..\Views\MainWindow.axaml;..\Views\*Window.axaml"
+                  Link="Views\%(RecursiveDir)%(Filename)%(Extension)" />
+
+    <!-- 样式与资源：avares 逻辑路径必须与仓库内一致（Styles\… / Assets\…），
+         否则 App.axaml 里的 avares://TraeTools/Styles/AppTheme.axaml 会解析失败 -->
+    <AvaloniaResource Include="..\Styles\**"
+                      Link="Styles\%(RecursiveDir)%(Filename)%(Extension)" />
+    <AvaloniaResource Include="..\Assets\**"
+                      Link="Assets\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!-- Android 资源（应用图标 / 主题 / 配色） -->
+  <ItemGroup>
+    <AndroidResource Include="Resources\**" />
+  </ItemGroup>
+
+  <!-- ============ 包引用 ============ -->
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Android" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.2" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.*" />
+    <!-- Android 端 SQLite 原生库（e_sqlite3 的 android arm/arm64/x64/x86 变体）；
+         Windows 端由 bundle_e_sqlite3 自带，不会重复引入 -->
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3.android" Version="2.1.*" />
+    <PackageReference Include="Sodium.Core" Version="1.4.1" />
+  </ItemGroup>
+
+  <!-- 版本源生效留痕，便于在 CI 输出里确认 -->
+  <Target Name="ReportVersionSource" BeforeTargets="BeforeBuild">
+    <Message Text="Android version read from version.json: $(_VJsonVer) (applied at evaluation time to Version/ApplicationDisplayVersion)" Importance="high" />
+  </Target>
+
+</Project>
