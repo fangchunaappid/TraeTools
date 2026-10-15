@@ -142,6 +142,18 @@ public partial class MainViewModel : ViewModelBase
         _usage.NavigateRequested += p => Navigate(p);
         _log.NavigateRequested += p => Navigate(p);
 
+        // 顶栏账号下拉：默认选中当前激活账号（账号列表由 SwitchViewModel 在构造时载入）
+        try
+        {
+            var cfg0 = AppConfig;
+            var active = cfg0?.Accounts.FirstOrDefault(a => a.Id == cfg0.ActiveAccountId)
+                         ?? cfg0?.Accounts.FirstOrDefault();
+            if (active != null)
+                _switch.SelectedAccount = _switch.Accounts.FirstOrDefault(a => a.Id == active.Id);
+            RefreshTopBar();
+        }
+        catch { /* 顶栏初始化失败不影响主流程 */ }
+
         CurrentPage = _dashboard;
         CurrentPageKey = "dashboard";
 
@@ -194,6 +206,7 @@ public partial class MainViewModel : ViewModelBase
             vm._checkin.Reload();
             vm._usage.Reload();
             await vm._settings.RefreshAccountStatesAsync();
+            vm.RefreshTopBar();   // 顶栏「当前生效」文案与下拉选中项随之更新
         }
         catch { /* 异步刷新失败不应导致崩溃 */ }
     }

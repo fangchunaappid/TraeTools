@@ -26,7 +26,7 @@
                     <Color x:Key="Violet">#FF8B5CF6</Color>
                     <Color x:Key="ContentBg">#FFF1F5F9</Color>
                     <Color x:Key="CardBg">#FFFFFFFF</Color>
-                    <Color x:Key="RowBg">#FFF8FAFC</Color>
+                    <Color x:Key="RowBg">#FFF9FAFB</Color>
                     <Color x:Key="HeroTintBg">#FFE8F1FE</Color>
                     <Color x:Key="HeroTintSub">#FF64748B</Color>
                     <Color x:Key="RingTrack">#FFDBEAFE</Color>

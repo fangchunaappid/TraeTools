@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:TraeTools.ViewModels"
+        xmlns:mdl="using:TraeTools.Models"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="720"
@@ -93,8 +94,35 @@
         </Border>
 
         <!-- ============ Content Area ============ -->
-        <Border Grid.Column="1" Background="{DynamicResource ContentBgBrush}" Padding="28,32">
-            <ContentControl Content="{Binding CurrentPage}" />
-        </Border>
+        <Grid Grid.Column="1" RowDefinitions="Auto,*">
+            <!-- 顶栏：当前账号下拉切换（本 PR 新增；复用账号切换页的集合与冷切换命令） -->
+            <Border Grid.Row="0" Background="{DynamicResource ContentBgBrush}"
+                    BorderBrush="{DynamicResource BorderBrushKey}" BorderThickness="0,0,0,1"
+                    Padding="28,12">
+                <Grid ColumnDefinitions="Auto,260,Auto,*">
+                    <TextBlock Grid.Column="0" Text="当前账号" Classes="page-subtitle"
+                               VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding TopAccounts}"
+                              SelectedItem="{Binding TopSelectedAccount}"
+                              HorizontalAlignment="Stretch" VerticalAlignment="Center">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="mdl:AccountInfo">
+                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <Button Grid.Column="2" Classes="btn" Content="切换" Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            Command="{Binding SwitchToSelectedAccountCommand}" />
+                    <TextBlock Grid.Column="3" Text="{Binding TopActiveAccountText}" Classes="page-subtitle"
+                               VerticalAlignment="Center" Margin="14,0,0,0"
+                               TextTrimming="CharacterEllipsis" />
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="1" Background="{DynamicResource ContentBgBrush}" Padding="28,32">
+                <ContentControl Content="{Binding CurrentPage}" />
+            </Border>
+        </Grid>
     </Grid>
 </Window>

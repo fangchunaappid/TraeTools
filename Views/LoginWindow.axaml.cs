@@ -1,8 +1,12 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 using TraeCheckin;
 using TraeTools.Services.Login;
 using TraeTools.ViewModels;
@@ -10,8 +14,12 @@ using TraeTools.ViewModels;
 namespace TraeTools.Views;
 
 /// <summary>
-/// 登录窗口：优先使用内嵌 WebView2 自动登录（自动读取 token + session），
-/// 也保留手动粘贴 Cloud-IDE-Token 的备选方案。
+/// 登录窗口。获取登录态的四种方式：
+///   1. 内嵌 WebView2 自动登录（独立宿主进程 TraeTools.LoginHost.exe，主程序不含 WinForms/WebView2）；
+///   2. 从剪贴板智能识别（自动判别 Cloud-IDE-Token 与会话串，会话走 GetUserToken 换 Token）；
+///   3. 导入账号备份文件（口令派生的 AES-256-GCM 加密包，可跨机迁移）；
+///   4. 读取本机 TRAE 客户端的登录态。
+/// 另保留手动粘贴 Cloud-IDE-Token 的兜底方案。
 /// </summary>
 public partial class LoginWindow : Window
 {
@@ -113,6 +121,201 @@ public partial class LoginWindow : Window
         if (!string.IsNullOrEmpty(uid)) _account.AccountUid = uid;
         MainViewModel.AppConfig?.Save();
         Close(true);
+    }
+
+    // ====================================================================
+    //            本 PR 新增的三种获取登录方式（剪贴板 / 备份 / 本机客户端）
+    // ====================================================================
+
+    /// <summary>
+    /// 从剪贴板读取一段文本并智能识别：Token 直接用；会话串则调 GetUserToken 换取 Token。
+    /// 识别逻辑在 CredentialImporter，本方法只负责取文本与回显结果。
+    /// </summary>
+    private async void OnImportClipboardClick(object? sender, RoutedEventArgs e)
+    {
+        if (_busy) return;
+        try
+        {
+            var top = TopLevel.GetTopLevel(this);
+            if (top?.Clipboard is not { } cb)
+            {
+                AltStatus.Text = "无法访问剪贴板";
+                return;
+            }
+
+            var raw = await cb.TryGetTextAsync();
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                AltStatus.Text = "剪贴板为空，请先在浏览器里复制 Token 或会话串";
+                return;
+            }
+
+            _busy = true;
+            AltStatus.Text = "正在识别剪贴板内容…";
+            var result = await CredentialImporter.ImportAsync(raw, MainViewModel.CheckinApi);
+            if (!result.Ok)
+            {
+                AltStatus.Text = result.Message;
+                return;
+            }
+            ApplyCredential(result.Token, result.Session, null, result.Message);
+        }
+        catch (Exception ex)
+        {
+            AltStatus.Text = "识别失败：" + ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>
+    /// 从账号备份文件（.json，口令派生的 AES-256-GCM 加密包）导入登录态。
+    /// 优先取与当前账号 AccountUid 相同的那一份，否则取备份中的第一个账号并提示。
+    /// </summary>
+    private async void OnImportBackupClick(object? sender, RoutedEventArgs e)
+    {
+        if (_busy) return;
+        try
+        {
+            var top = TopLevel.GetTopLevel(this);
+            if (top == null)
+            {
+                AltStatus.Text = "无法打开文件选择器";
+                return;
+            }
+
+            var picked = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "选择 TraeTools 账号备份文件",
+                AllowMultiple = false,
+                FileTypeFilter = new[]
+                {
+                    new FilePickerFileType("TraeTools 账号备份") { Patterns = new[] { "*.json" } },
+                    FilePickerFileTypes.All,
+                },
+            });
+            if (picked.Count == 0) return;
+
+            string text;
+            await using (var stream = await picked[0].OpenReadAsync())
+            using (var reader = new StreamReader(stream))
+            {
+                text = await reader.ReadToEndAsync();
+            }
+
+            var prompt = new InputWindow(
+                "账号备份口令",
+                "备份由口令派生的密钥加密（PBKDF2 + AES-256-GCM）。请输入导出时设置的口令。",
+                "口令至少 6 位");
+            var pass = await prompt.ShowDialog<string>(this);
+            if (string.IsNullOrEmpty(pass))
+            {
+                AltStatus.Text = "已取消";
+                return;
+            }
+
+            var (ok, message, accounts) = AccountBackup.Read(text, pass);
+            if (!ok || accounts.Count == 0)
+            {
+                AltStatus.Text = message;
+                return;
+            }
+
+            var uid = _account?.AccountUid;
+            var pick = (!string.IsNullOrEmpty(uid)
+                        ? accounts.FirstOrDefault(a => a.AccountUid == uid)
+                        : null)
+                       ?? accounts[0];
+
+            var note = accounts.Count > 1
+                ? $"{message}；本窗口只能使用其中一个，已取 {(pick.AccountUid ?? pick.Id)}"
+                : message;
+            ApplyCredential(pick.Token, pick.Session, pick.DeviceId, note);
+        }
+        catch (Exception ex)
+        {
+            AltStatus.Text = "导入失败：" + ex.Message;
+        }
+    }
+
+    /// <summary>读取本机 TRAE 客户端的登录态（storage.json 里的 Token / 会话 / Aha 设备号）。</summary>
+    private async void OnImportLocalClientClick(object? sender, RoutedEventArgs e)
+    {
+        if (_busy) return;
+        try
+        {
+            if (!LocalClientImporter.HasAnyClient())
+            {
+                AltStatus.Text = "未在本机找到 TRAE 客户端的数据目录";
+                return;
+            }
+
+            _busy = true;
+            AltStatus.Text = "正在读取本机客户端登录态…";
+            var result = await LocalClientImporter.TryImportAsync();
+            if (!result.Ok)
+            {
+                AltStatus.Text = result.Message;
+                return;
+            }
+            ApplyCredential(result.Token, result.Session, result.DeviceId,
+                result.Message + (string.IsNullOrEmpty(result.Source) ? "" : $"（来源：{result.Source}）"));
+        }
+        catch (Exception ex)
+        {
+            AltStatus.Text = "读取失败：" + ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>
+    /// 把拿到的一组凭证写入当前账号并关闭窗口（返回 true 表示登录成功）。
+    ///
+    /// 设备号处理：只在「本机其它账号都没用过」时才写入 —— 多账号共用同一设备号会被
+    /// Trae 风控判为同一台机器并返回 9074，因此冲突时保留账号原有设备号。
+    /// </summary>
+    private void ApplyCredential(string? token, string? session, string? deviceId, string note)
+    {
+        try
+        {
+            if (_account == null)
+            {
+                AltStatus.Text = "无当前账号，无法保存";
+                return;
+            }
+            if (string.IsNullOrEmpty(token) && string.IsNullOrEmpty(session))
+            {
+                AltStatus.Text = "未取得可用的凭证";
+                return;
+            }
+
+            if (!string.IsNullOrEmpty(token)) _account.Token = token;
+            if (!string.IsNullOrEmpty(session)) _account.Session = session;
+
+            if (!string.IsNullOrEmpty(deviceId)
+                && deviceId.Length == 16 && deviceId.All(char.IsDigit)
+                && !(MainViewModel.AppConfig?.Accounts.Any(a => a.Id != _account.Id && a.DeviceId == deviceId) ?? true))
+            {
+                _account.DeviceId = deviceId;
+            }
+
+            _account.TokenUpdatedAt = DateTime.Now;
+            var uid = TokenUtils.ParseAccountUid(token ?? _account.Token);
+            if (!string.IsNullOrEmpty(uid)) _account.AccountUid = uid;
+
+            MainViewModel.AppConfig?.Save();
+            AltStatus.Text = note;
+            Close(true);
+        }
+        catch (Exception ex)
+        {
+            AltStatus.Text = "保存失败：" + ex.Message;
+        }
     }
 
     private void OnCancelClick(object? sender, RoutedEventArgs e) => Close(false);
