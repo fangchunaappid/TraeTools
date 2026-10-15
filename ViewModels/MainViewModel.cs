@@ -130,6 +130,7 @@ public partial class MainViewModel : ViewModelBase
         _switch = new SwitchViewModel();
         _cloud = new CloudViewModel();
         _settings = new SettingsViewModel();
+        _settings.LoadExtendedSettings();   // 载入本 PR 新增的推送/日志/主题/设备号配置
         _usage = new UsageViewModel();
         _log = new LogViewModel();
 
@@ -287,6 +288,7 @@ public partial class MainViewModel : ViewModelBase
                 CurrentPageKey = "cloud";
                 break;
             case "settings":
+                _settings.LoadExtendedSettings();   // 每次进入都从配置重读，避免多页面改配置后界面过期
                 _ = _settings.RefreshAccountStatesAsync();
                 CurrentPage = _settings;
                 CurrentPageKey = "settings";

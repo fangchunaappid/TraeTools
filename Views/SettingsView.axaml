@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:TraeTools.ViewModels"
+             xmlns:sec="using:TraeTools.Services.Security"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
@@ -297,6 +298,186 @@
                         </StackPanel>
                     </Border>
                 </StackPanel>
+
+                <!-- ============================================================
+                     以下为本 PR 新增区段（推送渠道 / 日志与外观 / 自定义设备号 / 安全检查）
+                     上游此前的卡片结构保持原样，新增内容一律追加在末尾。
+                     ============================================================ -->
+
+                <!-- ===== 推送通知（六渠道） ===== -->
+                <Border Classes="card">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="推送通知" Classes="card-title" />
+                        <TextBlock Classes="page-subtitle" TextWrapping="Wrap"
+                                   Text="签到完成后把结果推送到下列渠道。总开关关闭时任何渠道都不会发送；各渠道还可单独开关。" />
+
+                        <CheckBox Content="签到完成后推送" IsChecked="{Binding NotifyOnCheckin}" />
+                        <CheckBox Content="系统本地通知（右下角弹窗，进 Windows 通知中心）"
+                                  IsChecked="{Binding NotifySystemEnabled}" />
+
+                        <Border Height="1" Background="{DynamicResource BorderBrushKey}" Margin="0,4" />
+
+                        <!-- 飞书（上游既有渠道，配置项沿用 FeishuWebhook） -->
+                        <TextBlock Text="飞书机器人" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextMainBrush}" />
+                        <TextBox Text="{Binding FeishuWebhook}" PlaceholderText="飞书机器人 Webhook 地址" />
+
+                        <Border Height="1" Background="{DynamicResource BorderBrushKey}" Margin="0,4" />
+
+                        <!-- 邮箱：可自定义 SMTP 服务器与端口 -->
+                        <CheckBox Content="邮箱（自定义 SMTP 服务器与端口）" IsChecked="{Binding EmailEnabled}" />
+                        <Grid ColumnDefinitions="*,140">
+                            <TextBox Grid.Column="0" Text="{Binding SmtpHost}"
+                                     PlaceholderText="SMTP 服务器，如 smtp.qq.com" />
+                            <TextBox Grid.Column="1" Text="{Binding SmtpPort}" Margin="8,0,0,0"
+                                     PlaceholderText="端口 465" />
+                        </Grid>
+                        <TextBlock Classes="page-subtitle" TextWrapping="Wrap"
+                                   Text="端口常见取值：465（隐式 SSL）、587（STARTTLS）、25（明文）。下面选择与端口匹配的连接方式。" />
+                        <ComboBox ItemsSource="{Binding SmtpSecurityOptions}" SelectedItem="{Binding SmtpSecurity}"
+                                  HorizontalAlignment="Stretch" />
+                        <TextBox Text="{Binding SmtpUser}" PlaceholderText="用户名（多数邮箱就是完整邮箱地址）" />
+                        <TextBox Text="{Binding SmtpPassword}" PasswordChar="•"
+                                 PlaceholderText="密码 / 授权码（加密落盘，非明文）" />
+                        <Grid ColumnDefinitions="*,*">
+                            <TextBox Grid.Column="0" Text="{Binding SmtpFrom}" PlaceholderText="发件人地址" />
+                            <TextBox Grid.Column="1" Text="{Binding SmtpTo}" Margin="8,0,0,0"
+                                     PlaceholderText="收件人，多个用英文逗号分隔" />
+                        </Grid>
+
+                        <Border Height="1" Background="{DynamicResource BorderBrushKey}" Margin="0,4" />
+
+                        <!-- 通用 Webhook -->
+                        <CheckBox Content="通用 Webhook（自建服务 / Server酱 / PushPlus 等）"
+                                  IsChecked="{Binding WebhookEnabled}" />
+                        <TextBox Text="{Binding WebhookUrl}"
+                                 PlaceholderText="https://…（地址含令牌，将加密落盘）" />
+                        <TextBox Text="{Binding WebhookBodyTemplate}"
+                                 PlaceholderText="{}{&quot;title&quot;:&quot;{title}&quot;,&quot;content&quot;:&quot;{content}&quot;}" />
+                        <TextBox Text="{Binding WebhookContentType}" PlaceholderText="Content-Type，默认 application/json" />
+
+                        <Border Height="1" Background="{DynamicResource BorderBrushKey}" Margin="0,4" />
+
+                        <!-- 钉钉 -->
+                        <CheckBox Content="钉钉群机器人" IsChecked="{Binding DingTalkEnabled}" />
+                        <TextBox Text="{Binding DingTalkWebhook}" PlaceholderText="钉钉机器人 Webhook 地址" />
+                        <TextBox Text="{Binding DingTalkSecret}"
+                                 PlaceholderText="加签密钥 SEC…（机器人安全设置选「加签」时填写，可留空）" />
+
+                        <Border Height="1" Background="{DynamicResource BorderBrushKey}" Margin="0,4" />
+
+                        <!-- 企业微信 -->
+                        <CheckBox Content="企业微信群机器人" IsChecked="{Binding WeComEnabled}" />
+                        <TextBox Text="{Binding WeComWebhook}" PlaceholderText="企业微信机器人 Webhook 地址（已含 key）" />
+
+                        <Border Height="1" Background="{DynamicResource BorderBrushKey}" Margin="0,4" />
+
+                        <!-- Telegram -->
+                        <CheckBox Content="Telegram Bot" IsChecked="{Binding TelegramEnabled}" />
+                        <TextBox Text="{Binding TelegramBotToken}" PasswordChar="•"
+                                 PlaceholderText="Bot Token（可直接粘贴整条 URL，会自动取出 token）" />
+                        <TextBox Text="{Binding TelegramChatId}"
+                                 PlaceholderText="Chat ID（私聊为数字，群为负数）" />
+                        <TextBlock Classes="page-subtitle" TextWrapping="Wrap"
+                                   Text="提示：Telegram 接口在国内网络通常需要代理，测试失败时请先确认网络环境。" />
+
+                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                            <Button Classes="btn-primary" Content="保存推送配置"
+                                    Command="{Binding SaveNotifySettingsCommand}" />
+                            <Button Classes="btn" Content="测试全部渠道"
+                                    Command="{Binding TestAllChannelsCommand}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- ===== 日志与外观 ===== -->
+                <Border Classes="card">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="日志与外观" Classes="card-title" />
+
+                        <CheckBox Content="日志页自动滚动到最新一行" IsChecked="{Binding LogAutoScroll}" />
+
+                        <Border Height="1" Background="{DynamicResource BorderBrushKey}" Margin="0,4" />
+
+                        <TextBlock Text="主题" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextMainBrush}" />
+                        <TextBlock Classes="page-subtitle" TextWrapping="Wrap"
+                                   Text="配色只有 Styles/AppTheme.axaml 一份，按 Light / Dark 两套取值定义；切换即刻生效，无需重启。" />
+                        <ComboBox ItemsSource="{Binding ThemeModeOptions}" SelectedItem="{Binding ThemeMode}"
+                                  HorizontalAlignment="Stretch" />
+
+                        <Button Classes="btn" Content="保存日志设置"
+                                Command="{Binding SaveNotifySettingsCommand}" HorizontalAlignment="Left" />
+                    </StackPanel>
+                </Border>
+
+                <!-- ===== 自定义设备号 ===== -->
+                <Border Classes="card">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="自定义设备号" Classes="card-title" />
+                        <TextBlock Classes="page-subtitle" TextWrapping="Wrap"
+                                   Text="设备号是 Trae 风控识别「同一台设备」的依据：必须是 16 位纯数字，且各账号之间不得重复（重复会返回 9074 参与用户太多）。此处的改动只作用于当前选中的账号。" />
+
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="当前账号设备号：" Classes="page-subtitle" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding DeviceIdText}" Classes="page-subtitle"
+                                       Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+                        </StackPanel>
+
+                        <Grid ColumnDefinitions="*,Auto,Auto">
+                            <TextBox Grid.Column="0" Text="{Binding CustomDeviceId}" MaxLength="16"
+                                     PlaceholderText="16 位数字设备号" />
+                            <Button Grid.Column="1" Classes="btn" Content="随机生成" Margin="8,0,0,0"
+                                    Command="{Binding RandomizeCustomDeviceIdCommand}" />
+                            <Button Grid.Column="2" Classes="btn-primary" Content="保存设备号" Margin="8,0,0,0"
+                                    Command="{Binding SaveCustomDeviceIdCommand}" />
+                        </Grid>
+
+                        <Button Classes="btn" Content="为全部账号换发新设备号（互不重复）"
+                                Command="{Binding RenewAllDeviceIdsCommand}" HorizontalAlignment="Left" />
+                    </StackPanel>
+                </Border>
+
+                <!-- ===== 账号与本地安全检查 ===== -->
+                <Border Classes="card">
+                    <StackPanel Spacing="12">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="账号与本地安全检查" Classes="card-title"
+                                       VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Classes="btn" Content="开始检查"
+                                    Command="{Binding RunSecurityAuditCommand}"
+                                    IsEnabled="{Binding !SecurityAuditRunning}" />
+                        </Grid>
+                        <TextBlock Classes="page-subtitle" TextWrapping="Wrap"
+                                   Text="只做本地可判定的检查（凭证是否明文落盘、设备号是否合规、会话还剩多久、日志有没有漏出凭证），不做网络探测，也不修改任何数据。报告里不会出现敏感值本身。" />
+
+                        <TextBlock Text="{Binding SecuritySummary}" Classes="page-subtitle"
+                                   IsVisible="{Binding HasSecurityFindings}"
+                                   Foreground="{DynamicResource TextMainBrush}" />
+
+                        <ItemsControl ItemsSource="{Binding SecurityFindings}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="sec:SecurityFinding">
+                                    <Border Margin="0,4" CornerRadius="10" Padding="12,10"
+                                            Background="{Binding LevelBgBrush}">
+                                        <Grid ColumnDefinitions="Auto,*">
+                                            <TextBlock Grid.Column="0" Text="{Binding Icon}" FontSize="14"
+                                                       VerticalAlignment="Top" Margin="0,1,8,0" />
+                                            <StackPanel Grid.Column="1" Spacing="3">
+                                                <TextBlock Text="{Binding Title}" FontSize="12.5" FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextMainBrush}" />
+                                                <SelectableTextBlock Text="{Binding Detail}" FontSize="11.5"
+                                                                     TextWrapping="Wrap"
+                                                                     Foreground="{DynamicResource TextMutedBrush}" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
             </StackPanel>
         </ScrollViewer>
 

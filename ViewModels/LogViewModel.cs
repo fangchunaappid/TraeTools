@@ -180,6 +180,11 @@ public partial class LogViewModel : ViewModelBase
                 return;
             }
 
+            // 设置页可能改过「自动滚动」偏好，进页面时同步一次。
+            // OnAutoScrollChanged 内部有相等判断，因此这里不会产生多余的落盘。
+            try { AutoScroll = MainViewModel.AppConfig?.LogAutoScroll ?? AutoScroll; }
+            catch { /* 读配置失败则保留当前值 */ }
+
             Recent.Clear();
             foreach (var e in AppLog.Recent(MaxRecentRows)) Recent.Add(e);
             if (AutoScroll) RequestScrollToEnd();
