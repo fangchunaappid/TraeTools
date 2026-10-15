@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using TraeTools.Services;
 using TraeTools.ViewModels;
 using TraeTools.Views;
 
@@ -21,9 +22,15 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            var vm = new MainViewModel();
+
+            // 主题必须在窗口创建前应用：否则会先按默认变体绘制一帧再切过去（可见闪一下）。
+            // MainViewModel 的构造已完成 AppConfig.Load()，此处读到的就是用户设置。
+            ThemeService.Apply(MainViewModel.AppConfig?.ThemeMode);
+
             desktop.MainWindow = new MainWindow
             {
-                DataContext = new MainViewModel(),
+                DataContext = vm,
             };
         }
 

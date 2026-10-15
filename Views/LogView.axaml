@@ -1,0 +1,196 @@
+﻿<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TraeTools.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             x:Class="TraeTools.Views.LogView"
+             x:DataType="vm:LogViewModel">
+
+    <Design.DataContext>
+        <vm:LogViewModel />
+    </Design.DataContext>
+
+    <UserControl.Styles>
+        <!-- ===== 日志行：等宽字体，按级别着色（颜色统一走主题令牌） ===== -->
+        <Style Selector="TextBlock.logline">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+        </Style>
+        <Style Selector="TextBlock.logline.warn">
+            <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+        </Style>
+        <Style Selector="TextBlock.logline.error">
+            <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+        </Style>
+        <Style Selector="TextBlock.logline.success">
+            <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+        </Style>
+
+        <!-- ===== 标签页按钮：选中态用主色淡底 ===== -->
+        <Style Selector="Button.tab-btn">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="14,7" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.tab-btn:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource HoverTintBrush}" />
+        </Style>
+        <Style Selector="Button.tab-btn.active">
+            <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Button.tab-btn.active:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+        </Style>
+
+        <!-- ===== 日志文件列表项 ===== -->
+        <Style Selector="ListBoxItem /template/ ContentPresenter" x:SetterTargetType="ContentPresenter">
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+        <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter" x:SetterTargetType="ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource HoverTintBrush}" />
+        </Style>
+        <Style Selector="ListBoxItem:selected /template/ ContentPresenter" x:SetterTargetType="ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SelectedTintBrush}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+
+        <!-- ===== 页头 ===== -->
+        <StackPanel Grid.Row="0" Spacing="10" Margin="0,0,0,12">
+            <StackPanel Spacing="4">
+                <TextBlock Text="日志" Classes="page-title" />
+                <TextBlock Text="查看本次运行的实时日志，或浏览历史归档的日志文件" Classes="page-subtitle" />
+            </StackPanel>
+
+            <!-- 标签页 + 自动滚动开关 -->
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
+                    <Button Classes="tab-btn" Classes.active="{Binding IsRecentTab}"
+                            Content="最近" Command="{Binding ShowRecentCommand}" />
+                    <Button Classes="tab-btn" Classes.active="{Binding IsAllTab}"
+                            Content="全部" Command="{Binding ShowAllCommand}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="自动滚动" FontSize="12" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextMutedBrush}" />
+                    <ToggleSwitch IsChecked="{Binding AutoScroll}" OnContent="" OffContent=""
+                                  VerticalAlignment="Center" />
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+
+        <!-- ===== 操作条 ===== -->
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+            <TextBlock Grid.Column="0" FontSize="11" VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextSubBrush}"
+                       Text="{Binding RecentSummary}"
+                       IsVisible="{Binding IsRecentTab}" />
+            <TextBlock Grid.Column="0" FontSize="11" VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextSubBrush}"
+                       Text="{Binding FileHeader}" TextTrimming="CharacterEllipsis"
+                       IsVisible="{Binding IsAllTab}" />
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Button Classes="btn" Padding="12,5" FontSize="12" Content="滚动到最新"
+                        Command="{Binding ScrollToLatestCommand}" />
+                <Button Classes="btn" Padding="12,5" FontSize="12" Content="复制最近"
+                        IsVisible="{Binding IsRecentTab}" Command="{Binding CopyRecentCommand}" />
+                <Button Classes="btn" Padding="12,5" FontSize="12" Content="刷新"
+                        IsVisible="{Binding IsAllTab}" Command="{Binding RefreshFilesCommand}" />
+                <Button Classes="btn" Padding="12,5" FontSize="12" Content="删除文件"
+                        IsVisible="{Binding IsAllTab}" Command="{Binding DeleteFileCommand}" />
+                <Button Classes="btn" Padding="12,5" FontSize="12" Content="清空全部"
+                        Foreground="{DynamicResource DangerBrush}" Command="{Binding ClearAllCommand}" />
+            </StackPanel>
+        </Grid>
+
+        <!-- ===== 内容区 ===== -->
+        <Border Grid.Row="2" Classes="card" Padding="6">
+            <Grid>
+
+                <!-- ===== 最近（实时滚动视图） ===== -->
+                <ScrollViewer x:Name="RecentScroll" HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto"
+                              IsVisible="{Binding IsRecentTab}">
+                    <StackPanel Spacing="0" Margin="8,4">
+                        <TextBlock Text="本次运行还没有日志" Classes="empty-desc" Margin="0,24"
+                                   HorizontalAlignment="Center" IsVisible="{Binding IsRecentEmpty}" />
+                        <ItemsControl ItemsSource="{Binding Recent}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Classes="logline"
+                                               Classes.warn="{Binding IsWarn}"
+                                               Classes.error="{Binding IsError}"
+                                               Classes.success="{Binding IsSuccess}"
+                                               Text="{Binding Display}" Margin="0,1" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ===== 全部（文件列表 + 内容查看） ===== -->
+                <Grid RowDefinitions="Auto,*" IsVisible="{Binding IsAllTab}">
+
+                    <TextBlock Grid.Row="0" Text="还没有任何日志文件" Classes="empty-desc" Margin="0,16"
+                               HorizontalAlignment="Center" IsVisible="{Binding IsFilesEmpty}" />
+
+                    <ListBox Grid.Row="0" ItemsSource="{Binding Files}" SelectedItem="{Binding SelectedFile}"
+                             Background="Transparent" BorderThickness="0" MaxHeight="150"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             IsVisible="{Binding !IsFilesEmpty}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid ColumnDefinitions="*,Auto,Auto" Margin="2,2">
+                                    <TextBlock Grid.Column="0" Text="{Binding Title}" FontSize="12"
+                                               FontFamily="Consolas,Menlo,monospace"
+                                               Foreground="{DynamicResource TextMainBrush}"
+                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding SizeText}" FontSize="11"
+                                               Margin="10,0" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextSubBrush}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding TimeText}" FontSize="11"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextSubBrush}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <Border Grid.Row="1" Classes="code-box" Margin="0,8,0,0" MinHeight="160">
+                        <ScrollViewer x:Name="FileScroll" HorizontalScrollBarVisibility="Disabled"
+                                      VerticalScrollBarVisibility="Auto">
+                            <SelectableTextBlock Text="{Binding FileContent}" FontFamily="Consolas,Menlo,monospace"
+                                                 FontSize="11" TextWrapping="Wrap"
+                                                 Foreground="{DynamicResource CodeTextBrush}" />
+                        </ScrollViewer>
+                    </Border>
+                </Grid>
+            </Grid>
+        </Border>
+
+        <!-- ===== 底部状态条 ===== -->
+        <Border Grid.Row="3" Background="{DynamicResource StatusWarnBgBrush}"
+                BorderBrush="{DynamicResource StatusWarnBorderBrush}" BorderThickness="1,0,0,0"
+                Margin="0,10,0,0" IsVisible="{Binding HasStatus}">
+            <Grid ColumnDefinitions="Auto,*" Margin="14,8">
+                <Border Grid.Column="0" Width="9" Height="9" CornerRadius="5"
+                        Background="{DynamicResource WarningBrush}" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="{Binding Status}" FontSize="12"
+                           Foreground="{DynamicResource StatusWarnFgBrush}"
+                           VerticalAlignment="Center" Margin="10,0,0,0" TextTrimming="CharacterEllipsis" />
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

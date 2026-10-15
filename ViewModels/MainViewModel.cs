@@ -18,6 +18,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly CloudViewModel _cloud;
     private readonly SettingsViewModel _settings;
     private readonly UsageViewModel _usage;
+    private readonly LogViewModel _log;
 
     [ObservableProperty]
     private ViewModelBase? _currentPage;
@@ -130,6 +131,7 @@ public partial class MainViewModel : ViewModelBase
         _cloud = new CloudViewModel();
         _settings = new SettingsViewModel();
         _usage = new UsageViewModel();
+        _log = new LogViewModel();
 
         _dashboard.NavigateRequested += p => Navigate(p);
         _checkin.NavigateRequested += p => Navigate(p);
@@ -137,6 +139,7 @@ public partial class MainViewModel : ViewModelBase
         _cloud.NavigateRequested += p => Navigate(p);
         _settings.NavigateRequested += p => Navigate(p);
         _usage.NavigateRequested += p => Navigate(p);
+        _log.NavigateRequested += p => Navigate(p);
 
         CurrentPage = _dashboard;
         CurrentPageKey = "dashboard";
@@ -167,6 +170,7 @@ public partial class MainViewModel : ViewModelBase
     public bool IsCloudActive => CurrentPageKey == "cloud";
     public bool IsSettingsActive => CurrentPageKey == "settings";
     public bool IsUsageActive => CurrentPageKey == "usage";
+    public bool IsLogActive => CurrentPageKey == "log";
 
     partial void OnCurrentPageKeyChanged(string value)
     {
@@ -176,6 +180,7 @@ public partial class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsCloudActive));
         OnPropertyChanged(nameof(IsSettingsActive));
         OnPropertyChanged(nameof(IsUsageActive));
+        OnPropertyChanged(nameof(IsLogActive));
     }
 
     /// <summary>账号管理切换激活账号后：仪表盘完整刷新 + 签到页 + 账号状态同步 + 用量页联动。</summary>
@@ -292,6 +297,13 @@ public partial class MainViewModel : ViewModelBase
                     CurrentPage = _usage;
                     CurrentPageKey = "usage";
                     break;
+            case "log":
+                // 进页面时重建「最近」内存缓冲并重扫磁盘文件（日志文件可能被其它进程追加）
+                _log.ReloadRecent();
+                _log.RefreshFiles();
+                CurrentPage = _log;
+                CurrentPageKey = "log";
+                break;
         }
     }
 }

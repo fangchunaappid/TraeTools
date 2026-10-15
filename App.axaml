@@ -1,8 +1,13 @@
 ﻿<Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="TraeTools.App"
-             xmlns:local="using:TraeTools"
-             RequestedThemeVariant="Light">
+             xmlns:local="using:TraeTools">
+    <!--
+      刻意不写死 RequestedThemeVariant：
+      不设时的默认值即「跟随系统」，三态由 AppConfig.ThemeMode 决定，
+      启动时经 Services/ThemeService.Apply 应用（见 App.axaml.cs）。
+      配色只有 Styles/AppTheme.axaml 一份，按 Light/Dark 收在 ThemeDictionaries 里。
+    -->
 
     <Application.DataTemplates>
         <local:ViewLocator />

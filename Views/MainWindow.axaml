@@ -10,7 +10,7 @@
         Width="1100" Height="720"
         MinWidth="940" MinHeight="600"
         WindowStartupLocation="CenterScreen"
-        Background="{StaticResource ContentBgBrush}"
+        Background="{DynamicResource ContentBgBrush}"
         FontFamily="Inter,Microsoft YaHei UI,Segoe UI">
 
     <Design.DataContext>
@@ -24,7 +24,7 @@
         </Grid.ColumnDefinitions>
 
         <!-- ============ Sidebar ============ -->
-        <Border Grid.Column="0" Background="{StaticResource SidebarBgBrush}">
+        <Border Grid.Column="0" Background="{DynamicResource SidebarBgBrush}">
             <Grid RowDefinitions="Auto,*,Auto">
                 <!-- Brand area -->
                 <StackPanel Grid.Row="0" Margin="20,26,20,18">
@@ -69,6 +69,13 @@
                             <TextBlock Text="云端签到" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
+                    <Button Classes="nav-item" Classes.nav-item-active="{Binding IsLogActive}"
+                            Command="{Binding NavigateCommand}" CommandParameter="log">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="≡" FontSize="14" Width="20" TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="White" />
+                            <TextBlock Text="运行日志" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
                     <Button Classes="nav-item" Classes.nav-item-active="{Binding IsSettingsActive}"
                             Command="{Binding NavigateCommand}" CommandParameter="settings">
                         <StackPanel Orientation="Horizontal">
@@ -86,7 +93,7 @@
         </Border>
 
         <!-- ============ Content Area ============ -->
-        <Border Grid.Column="1" Background="{StaticResource ContentBgBrush}" Padding="28,32">
+        <Border Grid.Column="1" Background="{DynamicResource ContentBgBrush}" Padding="28,32">
             <ContentControl Content="{Binding CurrentPage}" />
         </Border>
     </Grid>

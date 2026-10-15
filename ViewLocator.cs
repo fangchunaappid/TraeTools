@@ -25,6 +25,7 @@ public class ViewLocator : IDataTemplate
             UsageViewModel => new UsageView(),
             SettingsViewModel => new SettingsView(),
             SwitchViewModel => new SwitchView(),
+            LogViewModel => new LogView(),
             _ => new TextBlock { Text = "Not Found: " + param.GetType().FullName },
         };
     }

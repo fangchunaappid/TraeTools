@@ -31,8 +31,8 @@
                         <Button Grid.Column="1" Classes="btn" Content="粘贴 Token(PAT)" Command="{Binding UsePatCommand}"
                                 Padding="12,6" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
                     </Grid>
-                    <TextBlock Text="{Binding StateText}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextMainBrush}" TextWrapping="Wrap" />
-                    <TextBlock Text="{Binding DeviceCodeText}" FontSize="12" Foreground="{StaticResource AccentBrush}" FontFamily="Consolas" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding StateText}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextMainBrush}" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding DeviceCodeText}" FontSize="12" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
 
@@ -41,7 +41,7 @@
                 <StackPanel Spacing="10">
                     <Grid ColumnDefinitions="*,Auto">
                         <TextBlock Grid.Column="0" Text="部署流程" Classes="card-title" />
-                        <TextBlock Grid.Column="1" Text="一键部署自动完成 · 仅状态展示" FontSize="11" Foreground="{StaticResource TextSubBrush}" />
+                        <TextBlock Grid.Column="1" Text="一键部署自动完成 · 仅状态展示" FontSize="11" Foreground="{DynamicResource TextSubBrush}" />
                     </Grid>
                     <ItemsControl ItemsSource="{Binding Steps}">
                         <ItemsControl.ItemsPanel>
@@ -65,7 +65,7 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                    <TextBlock Text="点上方主按钮「一键部署到云端」即自动完成全部步骤；本区只反映当前进度。" FontSize="11" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" />
+                    <TextBlock Text="点上方主按钮「一键部署到云端」即自动完成全部步骤；本区只反映当前进度。" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
 
@@ -78,31 +78,31 @@
                     </Grid>
                     <Grid ColumnDefinitions="*,*,*,*" RowDefinitions="Auto,Auto">
                         <StackPanel Grid.Row="0" Grid.Column="0" Spacing="4">
-                            <TextBlock Text="GitHub 用户" FontSize="11" Foreground="{StaticResource TextSubBrush}" />
+                            <TextBlock Text="GitHub 用户" FontSize="11" Foreground="{DynamicResource TextSubBrush}" />
                             <TextBlock Text="{Binding GitHubUser}" FontSize="13" FontWeight="SemiBold" />
                         </StackPanel>
                         <StackPanel Grid.Row="0" Grid.Column="1" Spacing="4">
-                            <TextBlock Text="Fork 仓库" FontSize="11" Foreground="{StaticResource TextSubBrush}" />
+                            <TextBlock Text="Fork 仓库" FontSize="11" Foreground="{DynamicResource TextSubBrush}" />
                             <TextBlock Text="{Binding ForkRepo}" FontSize="13" FontWeight="SemiBold" FontFamily="Consolas" />
                         </StackPanel>
                         <StackPanel Grid.Row="0" Grid.Column="2" Spacing="4">
-                            <TextBlock Text="cron 表达式" FontSize="11" Foreground="{StaticResource TextSubBrush}" />
+                            <TextBlock Text="cron 表达式" FontSize="11" Foreground="{DynamicResource TextSubBrush}" />
                             <TextBlock Text="{Binding CronExpression}" FontSize="13" FontWeight="SemiBold" FontFamily="Consolas" />
                         </StackPanel>
                         <StackPanel Grid.Row="0" Grid.Column="3" Spacing="4">
-                            <TextBlock Text="凭证有效期" FontSize="11" Foreground="{StaticResource TextSubBrush}" />
-                            <TextBlock Text="{Binding CredentialExpiry}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource WarningBrush}" />
+                            <TextBlock Text="凭证有效期" FontSize="11" Foreground="{DynamicResource TextSubBrush}" />
+                            <TextBlock Text="{Binding CredentialExpiry}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource WarningBrush}" />
                         </StackPanel>
                         <StackPanel Grid.Row="1" Grid.Column="0" Spacing="4" Margin="0,8,0,0">
-                            <TextBlock Text="上次运行" FontSize="11" Foreground="{StaticResource TextSubBrush}" />
-                            <TextBlock Text="{Binding LastRun}" FontSize="13" Foreground="{StaticResource SuccessBrush}" />
+                            <TextBlock Text="上次运行" FontSize="11" Foreground="{DynamicResource TextSubBrush}" />
+                            <TextBlock Text="{Binding LastRun}" FontSize="13" Foreground="{DynamicResource SuccessBrush}" />
                         </StackPanel>
                     </Grid>
 
-                    <Border Background="#1AF59E0B" BorderBrush="{StaticResource WarningBrush}" BorderThickness="1" CornerRadius="10" Padding="14,10" Margin="0,4,0,0">
+                    <Border Background="#1AF59E0B" BorderBrush="{DynamicResource WarningBrush}" BorderThickness="1" CornerRadius="10" Padding="14,10" Margin="0,4,0,0">
                         <StackPanel Orientation="Horizontal" Spacing="10">
-                            <TextBlock Text="⚠" FontSize="16" Foreground="{StaticResource WarningBrush}" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding WarningText}" FontSize="12" Foreground="{StaticResource WarningBrush}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            <TextBlock Text="⚠" FontSize="16" Foreground="{DynamicResource WarningBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding WarningText}" FontSize="12" Foreground="{DynamicResource WarningBrush}" VerticalAlignment="Center" TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
@@ -113,7 +113,7 @@
                 <StackPanel Spacing="8">
                     <Grid ColumnDefinitions="*,Auto">
                         <TextBlock Grid.Column="0" Text="部署日志" Classes="card-title" />
-                        <TextBlock Grid.Column="1" Text="操作明细" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+                        <TextBlock Grid.Column="1" Text="操作明细" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" />
                     </Grid>
                     <Border Classes="code-box" MinHeight="140" MaxHeight="260">
                         <ScrollViewer>
