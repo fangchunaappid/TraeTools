@@ -4,6 +4,8 @@ using System.Text.Json.Serialization.Metadata;
 using TraeCheckin;
 using TraeSwitch.Services;
 using TraeTools.Models;
+using TraeTools.Services.Login;
+using TraeTools.Services.Notify;
 
 namespace TraeTools.Services.Json;
 
@@ -58,6 +60,13 @@ public static class AppJsonIndented
 [JsonSerializable(typeof(GitHubSecretPayload))]
 [JsonSerializable(typeof(GitHubActionsPermissionPayload))]
 [JsonSerializable(typeof(GitHubWorkflowDispatchPayload))]
+// ===== 本次 PR 追加：推送渠道的 HTTP 请求体 =====
+// 这三种渠道消息体原先用匿名类型 + 反射 JsonSerializer 构造，在 full 裁剪 / NativeAOT 下
+// 既会产生 IL2026 警告，也会在运行时静默丢字段。改为具名类型 + 此处登记后完全走源生成。
+[JsonSerializable(typeof(TextRobotPayload))]
+[JsonSerializable(typeof(TelegramSendPayload))]
+// 账号备份的明文负载（外层已 AES-GCM 加密，故用紧凑输出；其中含 List<TraeAccount>，由生成器递归展开）
+[JsonSerializable(typeof(AccountBackup.Payload))]
 internal sealed partial class CompactJsonContext : JsonSerializerContext
 {
 }
@@ -69,6 +78,10 @@ internal sealed partial class CompactJsonContext : JsonSerializerContext
 [JsonSerializable(typeof(VaultMeta))]
 // DataPaths.Migrate 需要把合并后的 JsonObject 缩进写回（旧 config 合并路径）
 [JsonSerializable(typeof(System.Text.Json.Nodes.JsonObject))]
+// ===== 本次 PR 追加：账号备份文件的容器 =====
+// 备份是给人看/可手工转存的 JSON 文件，故走缩进上下文；
+// 明文负载（AccountBackup.Payload）因其外层已由 AES-GCM 加密，走紧凑上下文即可。
+[JsonSerializable(typeof(AccountBackup.Envelope))]
 internal sealed partial class IndentedJsonContext : JsonSerializerContext
 {
 }

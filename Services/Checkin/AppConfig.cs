@@ -48,6 +48,64 @@ public class AppConfig
     /// <summary>关闭主窗口时是否最小化到系统托盘（托盘驻留）。</summary>
     public bool MinimizeToTray { get; set; } = true;
 
+    // ==================== 以下为本次 PR 追加的配置项 ====================
+    // 注意：本类的落盘走 CloneForStorage 白名单（见该方法注释），
+    // 因此**每新增一个属性都必须同步加进 CloneForStorage 与 UnsealSecrets**，
+    // 否则该配置永远不会被写入 config.json（表现为「改完重启就失效」）。
+
+    /// <summary>旧版深色开关（仅 true/false 二态）。保留用于旧配置迁移，新代码请改用 ThemeMode。</summary>
+    public bool DarkMode { get; set; }
+
+    /// <summary>主题模式："system"（跟随系统）/ "light" / "dark"。空字符串表示旧配置待迁移。</summary>
+    public string ThemeMode { get; set; } = "";
+
+    /// <summary>日志页是否自动滚动到最新一行。</summary>
+    public bool LogAutoScroll { get; set; } = true;
+
+    /// <summary>签到完成后是否触发推送（总开关，关闭则所有渠道都不发）。</summary>
+    public bool NotifyOnCheckin { get; set; } = true;
+
+    /// <summary>系统本地通知渠道。</summary>
+    public bool NotifySystemEnabled { get; set; }
+
+    /// <summary>自定义 SMTP 邮箱渠道。</summary>
+    public bool EmailEnabled { get; set; }
+    public string SmtpHost { get; set; } = "";
+    /// <summary>SMTP 端口，默认 465（隐式 SSL）。常见取值：465=SSL、587=STARTTLS、25=明文。</summary>
+    public int SmtpPort { get; set; } = 465;
+    /// <summary>连接安全方式："ssl"（隐式 TLS）/ "starttls" / "none"。</summary>
+    public string SmtpSecurity { get; set; } = "ssl";
+    public string SmtpUser { get; set; } = "";
+    /// <summary>SMTP 密码 / 授权码（加密落盘）。</summary>
+    public string? SmtpPassword { get; set; }
+    public string SmtpFrom { get; set; } = "";
+    public string SmtpTo { get; set; } = "";
+
+    /// <summary>通用 Webhook 渠道。</summary>
+    public bool WebhookEnabled { get; set; }
+    /// <summary>目标 URL（加密落盘：地址里常带 token 类查询参数）。</summary>
+    public string? WebhookUrl { get; set; }
+    /// <summary>请求体模板，支持 {title} / {content} 占位符。</summary>
+    public string WebhookBodyTemplate { get; set; } = "{\"title\":\"{title}\",\"content\":\"{content}\"}";
+    public string WebhookContentType { get; set; } = "application/json";
+
+    /// <summary>钉钉群机器人。</summary>
+    public bool DingTalkEnabled { get; set; }
+    public string? DingTalkWebhook { get; set; }
+    /// <summary>加签密钥（可选）。机器人安全设置选择「加签」时必填。</summary>
+    public string? DingTalkSecret { get; set; }
+
+    /// <summary>企业微信群机器人。</summary>
+    public bool WeComEnabled { get; set; }
+    public string? WeComWebhook { get; set; }
+
+    /// <summary>Telegram Bot 推送。</summary>
+    public bool TelegramEnabled { get; set; }
+    /// <summary>Bot Token（加密落盘）。</summary>
+    public string? TelegramBotToken { get; set; }
+    /// <summary>目标会话 ID（私聊为数字 ID，群为负数）。</summary>
+    public string TelegramChatId { get; set; } = "";
+
     private static string ConfigDir => TraeTools.Services.DataPaths.Root;
 
     private static string ConfigPath => Path.Combine(ConfigDir, "config.json");
@@ -87,7 +145,9 @@ public class AppConfig
                         cfg.Save();
                     }
                     // 旧明文首次加载：立即加密落盘，避免明文长期留存
-                    if (needSeal) cfg.Save();
+                    // 主题模式迁移：旧配置只有 DarkMode 布尔值，此处补齐三态 ThemeMode
+                    bool themeMigrated = cfg.NormalizeTheme();
+                    if (needSeal || themeMigrated) cfg.Save();
                     return cfg;
                 }
             }
@@ -95,6 +155,7 @@ public class AppConfig
         catch { /* 配置损坏时回退默认 */ }
 
         var fresh = new AppConfig();
+        fresh.NormalizeTheme();
         var resolved = TryResolveAhaDeviceId();
         if (resolved != null) fresh.DeviceId = resolved;
         return fresh;
@@ -174,7 +235,29 @@ public class AppConfig
     /// <summary>敏感字段加密版本号。</summary>
     private const string SecretVaultVersionV1 = "dpapi-v1";
 
-    /// <summary>生成一份敏感字段（Token/Session/GitHubToken/DeviceId）已 DPAPI 加密的副本。</summary>
+    /// <summary>
+    /// 主题模式规整：把旧版仅有的 <see cref="DarkMode"/> 布尔值迁移为三态字符串；
+    /// 取值非法时回退 "system"。返回是否发生了修正（调用方据此决定是否落盘）。
+    /// </summary>
+    public bool NormalizeTheme()
+    {
+        var normalized = ThemeMode switch
+        {
+            "system" or "light" or "dark" => ThemeMode,
+            _ => DarkMode ? "dark" : "system",
+        };
+        if (normalized == ThemeMode) return false;
+        ThemeMode = normalized;
+        return true;
+    }
+
+    /// <summary>
+    /// 生成一份敏感字段已 DPAPI 加密的副本。
+    /// 敏感字段：<c>Token</c> / <c>Session</c> / <c>GitHubToken</c> / <c>DeviceId</c>，
+    /// 以及本次 PR 追加的推送渠道凭证 <c>SmtpPassword</c> / <c>WebhookUrl</c> /
+    /// <c>DingTalkWebhook</c> / <c>DingTalkSecret</c> / <c>WeComWebhook</c> / <c>TelegramBotToken</c>
+    /// （这些 URL / 令牌本身就是凭据，明文落盘等于泄露发送权限）。
+    /// </summary>
     private AppConfig CloneForStorage()
     {
         return new AppConfig
@@ -186,7 +269,9 @@ public class AppConfig
             GitHubToken = EncryptSecret(GitHubToken),
             GitHubLogin = GitHubLogin,
             FeishuWebhook = FeishuWebhook,
-            DeviceId = EncryptSecret(DeviceId),
+            // DeviceId 非可空：加密失败时退回明文，而不是写入 null。
+            // 明文 DeviceId 在下次加载解密失败后会被原样保留，属可自愈的降级，比落盘 null 安全。
+            DeviceId = EncryptSecret(DeviceId) ?? DeviceId,
             AutoCheckinEnabled = AutoCheckinEnabled,
             AutoCheckinTime = AutoCheckinTime,
             CheckinIntervalSeconds = CheckinIntervalSeconds,
@@ -200,13 +285,40 @@ public class AppConfig
             EulaAccepted = EulaAccepted,
             StarAskedAfterDeploy = StarAskedAfterDeploy,
             MinimizeToTray = MinimizeToTray,
+            // ===== 本次 PR 追加项 =====
+            DarkMode = DarkMode,
+            ThemeMode = ThemeMode,
+            LogAutoScroll = LogAutoScroll,
+            NotifyOnCheckin = NotifyOnCheckin,
+            NotifySystemEnabled = NotifySystemEnabled,
+            EmailEnabled = EmailEnabled,
+            SmtpHost = SmtpHost,
+            SmtpPort = SmtpPort,
+            SmtpSecurity = SmtpSecurity,
+            SmtpUser = SmtpUser,
+            SmtpPassword = EncryptSecret(SmtpPassword),
+            SmtpFrom = SmtpFrom,
+            SmtpTo = SmtpTo,
+            WebhookEnabled = WebhookEnabled,
+            WebhookUrl = EncryptSecret(WebhookUrl),
+            WebhookBodyTemplate = WebhookBodyTemplate,
+            WebhookContentType = WebhookContentType,
+            DingTalkEnabled = DingTalkEnabled,
+            DingTalkWebhook = EncryptSecret(DingTalkWebhook),
+            DingTalkSecret = EncryptSecret(DingTalkSecret),
+            WeComEnabled = WeComEnabled,
+            WeComWebhook = EncryptSecret(WeComWebhook),
+            TelegramEnabled = TelegramEnabled,
+            TelegramBotToken = EncryptSecret(TelegramBotToken),
+            TelegramChatId = TelegramChatId,
             Accounts = Accounts.Select(a => new TraeAccount
             {
                 Id = a.Id,
                 Name = a.Name,
                 Token = EncryptSecret(a.Token),
                 Session = EncryptSecret(a.Session),
-                DeviceId = EncryptSecret(a.DeviceId),
+                // 同 DeviceId：非可空，加密失败时保留明文而不是赋 null
+                DeviceId = EncryptSecret(a.DeviceId) ?? a.DeviceId,
                 AccountUid = a.AccountUid,
                 TokenUpdatedAt = a.TokenUpdatedAt,
                 LastCheckinDate = a.LastCheckinDate,
@@ -228,6 +340,14 @@ public class AppConfig
         cfg.Token = DecryptSecret(cfg.Token);
         cfg.Session = DecryptSecret(cfg.Session);
         cfg.GitHubToken = DecryptSecret(cfg.GitHubToken);
+        // 本次 PR 追加的敏感字段：它们是新增字段，历史上从未以明文落盘，
+        // 因此不需要像 FeishuWebhook 那样做「解密失败保留原值」的兼容处理。
+        cfg.SmtpPassword = DecryptSecret(cfg.SmtpPassword);
+        cfg.WebhookUrl = DecryptSecret(cfg.WebhookUrl);
+        cfg.DingTalkWebhook = DecryptSecret(cfg.DingTalkWebhook);
+        cfg.DingTalkSecret = DecryptSecret(cfg.DingTalkSecret);
+        cfg.WeComWebhook = DecryptSecret(cfg.WeComWebhook);
+        cfg.TelegramBotToken = DecryptSecret(cfg.TelegramBotToken);
         var dev = DecryptSecret(cfg.DeviceId);
         if (!string.IsNullOrEmpty(dev)) cfg.DeviceId = dev; // 解密失败（换机/换用户）保留原值，等重新登录刷新
         foreach (var a in cfg.Accounts)
