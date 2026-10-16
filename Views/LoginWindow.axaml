@@ -1,46 +1,74 @@
 ﻿<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="TraeTools.Views.LoginWindow"
-        Title="登录 TRAE 账号" Width="540" Height="500"
+        Title="登录 TRAE 账号" Width="560" Height="660"
         WindowStartupLocation="CenterOwner"
-        Background="White"
+        Background="{DynamicResource CardBgBrush}"
         FontFamily="Microsoft YaHei UI,Segoe UI">
-    <Grid RowDefinitions="Auto,*,Auto" Background="White">
-        <Border Grid.Row="0" Background="#FFF9FAFB" BorderBrush="#FFE2E8F0" BorderThickness="0,0,0,1" Padding="16,14">
-            <TextBlock Text="登录 TRAE 账号" FontSize="15" FontWeight="Bold" Foreground="#FF0F172A" />
+    <!-- 颜色一律走主题令牌：浅色取值与改造前逐字一致，故外观不变；深色主题下本窗口同样跟随。 -->
+    <Grid RowDefinitions="Auto,*,Auto" Background="{DynamicResource CardBgBrush}">
+        <Border Grid.Row="0" Background="{DynamicResource RowBgBrush}" BorderBrush="{DynamicResource BorderBrushKey}"
+                BorderThickness="0,0,0,1" Padding="16,14">
+            <TextBlock Text="登录 TRAE 账号" FontSize="15" FontWeight="Bold"
+                       Foreground="{DynamicResource TextMainBrush}" />
         </Border>
 
-        <Border Grid.Row="1" Padding="16,14"><StackPanel Spacing="12">
+        <Border Grid.Row="1" Padding="16,14">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Spacing="12">
             <!-- 内嵌浏览器自动登录（首选） -->
-            <TextBlock TextWrapping="Wrap" FontSize="12.5" Foreground="#FF0F172A" LineHeight="20">
+            <TextBlock TextWrapping="Wrap" FontSize="12.5" Foreground="{DynamicResource TextMainBrush}" LineHeight="20">
 推荐：点击下方「自动登录」将弹出内嵌浏览器窗口，登录成功后自动读取凭证，无需手动复制。
             </TextBlock>
             <StackPanel Orientation="Horizontal" Spacing="10">
                 <Button Content="自动登录（内嵌浏览器）" Click="OnAutoLoginClick" Classes="btn-primary"
                         HorizontalAlignment="Left" MinWidth="190" Height="40" Padding="16,0"
                         HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
-                <TextBlock x:Name="AutoStatus" FontSize="11" Foreground="#FF92400E" VerticalAlignment="Center" />
+                <TextBlock x:Name="AutoStatus" FontSize="11" Foreground="{DynamicResource StatusWarnFgBrush}"
+                           VerticalAlignment="Center" TextWrapping="Wrap" />
             </StackPanel>
 
-            <Border Height="1" Background="#FFE2E8F0" Margin="0,6" />
+            <Border Height="1" Background="{DynamicResource BorderBrushKey}" Margin="0,6" />
+
+            <!-- 其它获取方式（本次新增：剪贴板识别 / 备份文件导入 / 读取本机客户端） -->
+            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource TextMutedBrush}" LineHeight="19">
+其它获取方式：从剪贴板智能识别、导入账号备份文件、或直接读取本机 TRAE 客户端的登录态。
+            </TextBlock>
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <Button Content="从剪贴板识别" Click="OnImportClipboardClick" Classes="btn"
+                        MinWidth="120" Height="36" Padding="14,0"
+                        HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
+                <Button Content="导入备份文件" Click="OnImportBackupClick" Classes="btn"
+                        MinWidth="120" Height="36" Padding="14,0"
+                        HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
+                <Button Content="读取本机客户端" Click="OnImportLocalClientClick" Classes="btn"
+                        MinWidth="120" Height="36" Padding="14,0"
+                        HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
+            </StackPanel>
+            <TextBlock x:Name="AltStatus" FontSize="11" Foreground="{DynamicResource StatusWarnFgBrush}" TextWrapping="Wrap" />
+
+            <Border Height="1" Background="{DynamicResource BorderBrushKey}" Margin="0,6" />
 
             <!-- 手动方案（备选） -->
-            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#FF64748B" LineHeight="19">
+            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource TextMutedBrush}" LineHeight="19">
 备选：手动打开浏览器登录后复制 Cloud-IDE-Token 粘贴保存。
             </TextBlock>
             <Button Content="打开浏览器登录" Click="OnOpenBrowserClick" Classes="btn"
                     HorizontalAlignment="Left" MinWidth="160" Height="36" Padding="14,0"
                     HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
 
-            <TextBlock Text="Cloud-IDE-Token" FontSize="11" Foreground="#FF94A3B8" />
-            <TextBox x:Name="TokenBox" Height="110" AcceptsReturn="True"
+            <TextBlock Text="Cloud-IDE-Token" FontSize="11" Foreground="{DynamicResource TextSubBrush}" />
+            <TextBox x:Name="TokenBox" Height="90" AcceptsReturn="True"
                      PlaceholderText="粘贴 Cloud-IDE-Token…" FontFamily="Consolas" FontSize="11"
                      ScrollViewer.VerticalScrollBarVisibility="Auto" />
 
-            <TextBlock x:Name="StatusText" FontSize="12" Foreground="#FF92400E" TextWrapping="Wrap" />
-        </StackPanel></Border>
+            <TextBlock x:Name="StatusText" FontSize="12" Foreground="{DynamicResource StatusWarnFgBrush}" TextWrapping="Wrap" />
+        </StackPanel>
+            </ScrollViewer>
+        </Border>
 
-        <Border Grid.Row="2" Background="#FFF9FAFB" BorderBrush="#FFE2E8F0" BorderThickness="0,1,0,0" Padding="16,12">
+        <Border Grid.Row="2" Background="{DynamicResource RowBgBrush}" BorderBrush="{DynamicResource BorderBrushKey}"
+                BorderThickness="0,1,0,0" Padding="16,12">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
                 <Button Content="取消" MinWidth="100" Height="36" Padding="12,0"
                         HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Click="OnCancelClick" />
@@ -50,4 +78,3 @@
         </Border>
     </Grid>
 </Window>
-

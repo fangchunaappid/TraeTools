@@ -19,7 +19,7 @@
             <Setter Property="BorderBrush" Value="Transparent" />
         </Style>
         <Style Selector="Border.acct-card.acct-active">
-            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
             <Setter Property="Background" Value="#1A3B82F6" />
         </Style>
         <!-- 账号概览按钮：透明无阴影，悬停时铺满整张卡片（与外框圆角一致） -->
@@ -68,7 +68,7 @@
                         </Grid>
                         <StackPanel VerticalAlignment="Center" Spacing="2">
                             <TextBlock Text="{Binding CurrentAccountInfo.Name}" FontSize="15" FontWeight="SemiBold" />
-                            <TextBlock Text="当前账号" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+                            <TextBlock Text="当前账号" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" />
                         </StackPanel>
                     </StackPanel>
                 </StackPanel>
@@ -88,7 +88,7 @@
                         <TextBlock Text="剩余积分" Classes="card-title" />
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <TextBlock Text="{Binding RemainingCredits}" Classes="card-value" />
-                            <TextBlock Text="分" FontSize="13" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Bottom" Margin="0,0,0,4" />
+                            <TextBlock Text="分" FontSize="13" Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Bottom" Margin="0,0,0,4" />
                         </StackPanel>
                     </StackPanel>
                 </Border>
@@ -96,7 +96,7 @@
                     <StackPanel Spacing="8">
                         <TextBlock Text="今日签到" Classes="card-title" />
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="{Binding CheckinStatus}" Classes="card-value" Foreground="{StaticResource SuccessBrush}" />
+                            <TextBlock Text="{Binding CheckinStatus}" Classes="card-value" Foreground="{DynamicResource SuccessBrush}" />
                         </StackPanel>
                     </StackPanel>
                 </Border>
@@ -104,8 +104,8 @@
                     <StackPanel Spacing="8">
                         <TextBlock Text="连续签到" Classes="card-title" />
                         <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBlock Text="{Binding StreakDays}" Classes="card-value" Foreground="{StaticResource WarningBrush}" />
-                            <TextBlock Text="天" FontSize="13" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Bottom" Margin="0,0,0,4" />
+                            <TextBlock Text="{Binding StreakDays}" Classes="card-value" Foreground="{DynamicResource WarningBrush}" />
+                            <TextBlock Text="天" FontSize="13" Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Bottom" Margin="0,0,0,4" />
                         </StackPanel>
                     </StackPanel>
                 </Border>
@@ -119,7 +119,7 @@
                         <Grid ColumnDefinitions="*,Auto">
                             <TextBlock Grid.Column="0" Text="近 14 天积分趋势" Classes="card-title" />
                             <Border Grid.Column="1" Classes="badge-info">
-                                <TextBlock Text="{Binding TodayReward}" FontSize="11" Foreground="{StaticResource AccentBrush}" />
+                                <TextBlock Text="{Binding TodayReward}" FontSize="11" Foreground="{DynamicResource AccentBrush}" />
                             </Border>
                         </Grid>
                         <Grid RowDefinitions="200,Auto">
@@ -127,9 +127,9 @@
                             <Grid Grid.Row="0" ColumnDefinitions="40,*">
                                 <!-- Y 轴积分刻度（上=最大值，中=中值，下=最小值） -->
                                 <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto" Margin="0,0,6,0">
-                                    <TextBlock Grid.Row="0" Text="{Binding ChartYMax}" FontSize="10" Foreground="{StaticResource TextSubBrush}" HorizontalAlignment="Left" />
-                                    <TextBlock Grid.Row="1" Text="{Binding ChartYMid}" FontSize="10" Foreground="{StaticResource TextSubBrush}" HorizontalAlignment="Left" VerticalAlignment="Center" />
-                                    <TextBlock Grid.Row="2" Text="{Binding ChartYMin}" FontSize="10" Foreground="{StaticResource TextSubBrush}" HorizontalAlignment="Left" VerticalAlignment="Bottom" />
+                                    <TextBlock Grid.Row="0" Text="{Binding ChartYMax}" FontSize="10" Foreground="{DynamicResource TextSubBrush}" HorizontalAlignment="Left" />
+                                    <TextBlock Grid.Row="1" Text="{Binding ChartYMid}" FontSize="10" Foreground="{DynamicResource TextSubBrush}" HorizontalAlignment="Left" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Row="2" Text="{Binding ChartYMin}" FontSize="10" Foreground="{DynamicResource TextSubBrush}" HorizontalAlignment="Left" VerticalAlignment="Bottom" />
                                 </Grid>
                                 <Viewbox Grid.Column="1" Stretch="Fill" Height="200" HorizontalAlignment="Stretch" ClipToBounds="False">
                             <Canvas Width="520" Height="200" Background="Transparent" ClipToBounds="False">
@@ -147,9 +147,9 @@
                                     </Path.Fill>
                                 </Path>
                                 <!-- Line -->
-                                <Polyline Points="{Binding LinePoints}" Stroke="{StaticResource AccentBrush}" StrokeThickness="2.5" StrokeJoin="Round" />
+                                <Polyline Points="{Binding LinePoints}" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2.5" StrokeJoin="Round" />
                                 <!-- Today marker -->
-                                <Ellipse Canvas.Left="{Binding TodayX}" Canvas.Top="{Binding TodayY}" Width="12" Height="12" Fill="White" Stroke="{StaticResource AccentBrush}" StrokeThickness="3" />
+                                <Ellipse Canvas.Left="{Binding TodayX}" Canvas.Top="{Binding TodayY}" Width="12" Height="12" Fill="White" Stroke="{DynamicResource AccentBrush}" StrokeThickness="3" />
                                 <!-- Hover hit areas: contiguous coverage（宽度=步长，无缝隙，即时触发） -->
                                 <ItemsControl ItemsSource="{Binding TrendPoints}">
                                     <ItemsControl.ItemsPanel>
@@ -169,7 +169,7 @@
                                                 <Canvas>
                                                     <!-- 每个数据点一个可见圆点标记（相对 hit-area 原点居中，横坐标由外层 Canvas.Left 定位） -->
                                                     <Ellipse Canvas.Left="0" Canvas.Top="{Binding Y}" Width="12" Height="12"
-                                                             Margin="-6,-6,0,0" Fill="White" Stroke="{StaticResource AccentBrush}" StrokeThickness="2.5" />
+                                                             Margin="-6,-6,0,0" Fill="White" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2.5" />
                                                     <!-- 命中该点时竖直参考线 -->
                                                     <Border Width="1" Height="200" Background="#223B82F6" IsVisible="{Binding IsHovered}" HorizontalAlignment="Center" />
                                                 </Canvas>
@@ -195,7 +195,7 @@
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding}" FontSize="11" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Center" />
+                                        <TextBlock Text="{Binding}" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" HorizontalAlignment="Center" />
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>

@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:TraeTools.ViewModels"
+             xmlns:sec="using:TraeTools.Services.Security"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
@@ -14,7 +15,7 @@
     <UserControl.Styles>
         <!-- 账号管理卡片：当前激活账号用高亮粗边框框出（与仪表盘账号概览一致） -->
         <Style Selector="Border.acct-card.acct-active">
-            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
             <Setter Property="BorderThickness" Value="2" />
             <Setter Property="Background" Value="#1A3B82F6" />
         </Style>
@@ -44,35 +45,35 @@
                             <Grid ColumnDefinitions="*,Auto">
                                 <StackPanel Grid.Column="0" Spacing="2">
                                     <TextBlock Text="每日自动签到" FontSize="13" FontWeight="SemiBold" />
-                                    <TextBlock Text="到达指定时间自动执行" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+                                    <TextBlock Text="到达指定时间自动执行" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" />
                                 </StackPanel>
                                 <ToggleSwitch Grid.Column="1" IsChecked="{Binding AutoCheckinEnabled}" OnContent="" OffContent="" />
                             </Grid>
                             <Grid ColumnDefinitions="*,Auto" Margin="0,4">
                                 <StackPanel Grid.Column="0" Spacing="2">
                                     <TextBlock Text="签到时间" FontSize="13" FontWeight="SemiBold" />
-                                    <TextBlock Text="建议非高峰时段" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+                                    <TextBlock Text="建议非高峰时段" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" />
                                 </StackPanel>
                                 <TextBox Grid.Column="1" Text="{Binding AutoCheckinTime}" Width="90" Padding="6,4" HorizontalContentAlignment="Center" />
                             </Grid>
                             <Grid ColumnDefinitions="*,Auto" Margin="0,4">
                                 <StackPanel Grid.Column="0" Spacing="2">
                                     <TextBlock Text="签到间隔（秒）" FontSize="13" FontWeight="SemiBold" />
-                                    <TextBlock Text="多账号签到间隔，防止触发风控" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+                                    <TextBlock Text="多账号签到间隔，防止触发风控" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" />
                                 </StackPanel>
                                 <TextBox Grid.Column="1" Text="{Binding CheckinIntervalSeconds}" Width="90" Padding="6,4" HorizontalContentAlignment="Center" />
                             </Grid>
                             <Grid ColumnDefinitions="*,Auto" Margin="0,4">
                                 <StackPanel Grid.Column="0" Spacing="2">
                                     <TextBlock Text="开机自启" FontSize="13" FontWeight="SemiBold" />
-                                    <TextBlock Text="系统启动时自动运行" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+                                    <TextBlock Text="系统启动时自动运行" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" />
                                 </StackPanel>
                                 <ToggleSwitch Grid.Column="1" IsChecked="{Binding AutoStartEnabled}" OnContent="" OffContent="" />
                             </Grid>
                             <Grid ColumnDefinitions="*,Auto" Margin="0,4">
                                 <StackPanel Grid.Column="0" Spacing="2">
                                     <TextBlock Text="最小化到托盘" FontSize="13" FontWeight="SemiBold" />
-                                    <TextBlock Text="关闭窗口时驻留托盘" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+                                    <TextBlock Text="关闭窗口时驻留托盘" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" />
                                 </StackPanel>
                                 <ToggleSwitch Grid.Column="1" IsChecked="{Binding MinimizeToTray}" OnContent="" OffContent="" />
                             </Grid>
@@ -90,13 +91,13 @@
                                 <TextBlock Text="{Binding TokenString}" Foreground="#22D3EE" FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" />
                             </Border>
                             <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,2">
-                                <TextBlock Text="更新时间：" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
-                                <TextBlock Text="{Binding TokenUpdateTime}" FontSize="11" Foreground="{StaticResource TextMainBrush}" FontFamily="Consolas" />
+                                <TextBlock Text="更新时间：" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" />
+                                <TextBlock Text="{Binding TokenUpdateTime}" FontSize="11" Foreground="{DynamicResource TextMainBrush}" FontFamily="Consolas" />
                             </StackPanel>
                             <Grid ColumnDefinitions="*,Auto" Margin="0,2">
                                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                    <TextBlock Text="设备号：" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
-                                    <TextBlock Text="{Binding DeviceIdText}" FontSize="11" Foreground="{StaticResource TextMainBrush}" FontFamily="Consolas"
+                                    <TextBlock Text="设备号：" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" />
+                                    <TextBlock Text="{Binding DeviceIdText}" FontSize="11" Foreground="{DynamicResource TextMainBrush}" FontFamily="Consolas"
                                                TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
@@ -107,7 +108,7 @@
                                 </StackPanel>
                             </Grid>
                             <TextBlock Text="设备号被风控标记（签到 9074「参与用户太多」）时更换即可解除；云端签到需重新「云端部署」同步" FontSize="10"
-                                       Foreground="{StaticResource TextSubBrush}" TextWrapping="Wrap" />
+                                       Foreground="{DynamicResource TextSubBrush}" TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>
                 </Grid>
@@ -119,13 +120,13 @@
                         <StackPanel Spacing="14">
                             <TextBlock Text="飞书推送" Classes="card-title" />
                             <StackPanel Spacing="4">
-                                <TextBlock Text="Webhook 地址" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+                                <TextBlock Text="Webhook 地址" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" />
                                 <TextBox Text="{Binding FeishuWebhook}" Padding="8,6" FontFamily="Consolas" FontSize="11" />
                             </StackPanel>
                             <Grid ColumnDefinitions="*,Auto">
                                 <StackPanel Grid.Column="0" Spacing="2">
                                     <TextBlock Text="推送状态" FontSize="13" FontWeight="SemiBold" />
-                                    <TextBlock Text="启用后每日签到结果会推送到飞书" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+                                    <TextBlock Text="启用后每日签到结果会推送到飞书" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" />
                                 </StackPanel>
                                 <ToggleSwitch Grid.Column="1" IsChecked="{Binding PushEnabled}" OnContent="" OffContent="" />
                             </Grid>
@@ -159,7 +160,7 @@
                                     </Style>
                                     <Style Selector="ListBoxItem:selected /template/ ContentPresenter" x:SetterTargetType="ContentPresenter">
                                         <Setter Property="Background" Value="#263B82F6" />
-                                        <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                                         <Setter Property="BorderThickness" Value="1" />
                                     </Style>
                                     <Style Selector="ListBoxItem:focus-visible /template/ ContentPresenter" x:SetterTargetType="ContentPresenter">
@@ -187,12 +188,12 @@
                                                 <StackPanel Grid.Column="1" Spacing="1" Margin="10,0" VerticalAlignment="Center">
                                                     <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                                                     <StackPanel Orientation="Horizontal" Spacing="8">
-                                                        <TextBlock Text="{Binding MobileText}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas" />
+                                                        <TextBlock Text="{Binding MobileText}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" FontFamily="Consolas" />
                                                         <Border Classes="badge-ok" Padding="6,0" CornerRadius="4" VerticalAlignment="Center" IsVisible="{Binding IsStudent}">
                                                             <TextBlock Text="学生" FontSize="9" />
                                                         </Border>
                                                     </StackPanel>
-                                                    <TextBlock Text="{Binding CreatedAt}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas" />
+                                                    <TextBlock Text="{Binding CreatedAt}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" FontFamily="Consolas" />
                                                 </StackPanel>
                                                 <Border Grid.Column="2" CornerRadius="999" Padding="10,3" VerticalAlignment="Center"
                                                         Background="{Binding StatusBgBrush}" BorderBrush="{Binding StatusFgBrush}" BorderThickness="1">
@@ -215,12 +216,12 @@
                     <Border Classes="card">
                         <Grid ColumnDefinitions="*,Auto">
                             <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="14">
-                                <Border Width="52" Height="52" CornerRadius="14" Background="{StaticResource AccentBrush}">
+                                <Border Width="52" Height="52" CornerRadius="14" Background="{DynamicResource AccentBrush}">
                                     <TextBlock Text="T" Foreground="White" FontSize="26" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
                                 <StackPanel Spacing="4" VerticalAlignment="Center">
-                                    <TextBlock Text="TraeTools" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextMainBrush}" />
-                                    <TextBlock Text="{Binding AppVersion}" FontSize="12" Foreground="{StaticResource TextMutedBrush}" />
+                                    <TextBlock Text="TraeTools" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource TextMainBrush}" />
+                                    <TextBlock Text="{Binding AppVersion}" FontSize="12" Foreground="{DynamicResource TextMutedBrush}" />
                                 </StackPanel>
                             </StackPanel>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
@@ -242,14 +243,14 @@
                                     <TextBlock Text="📦" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
                                 <StackPanel Grid.Column="1" Spacing="2" Margin="10,0" VerticalAlignment="Center">
-                                    <TextBlock Text="打开原仓库" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextMainBrush}" />
-                                    <TextBlock Text="{Binding OriginalRepoUrl}" FontSize="11" Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas" />
+                                    <TextBlock Text="打开原仓库" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextMainBrush}" />
+                                    <TextBlock Text="{Binding OriginalRepoUrl}" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" FontFamily="Consolas" />
                                 </StackPanel>
                                 <Button Grid.Column="2" Classes="btn-ghost" Content="打开 →" Command="{Binding OpenOriginalRepoCommand}"
-                                        Foreground="{StaticResource AccentBrush}" Padding="12,6" />
+                                        Foreground="{DynamicResource AccentBrush}" Padding="12,6" />
                             </Grid>
 
-                            <Border Height="1" Background="{StaticResource BorderBrushKey}" Margin="0,4" />
+                            <Border Height="1" Background="{DynamicResource BorderBrushKey}" Margin="0,4" />
 
                             <!-- 打开我的 Fork 仓库 -->
                             <Grid ColumnDefinitions="40,*,Auto" Margin="0,6">
@@ -257,14 +258,14 @@
                                     <TextBlock Text="🍴" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
                                 <StackPanel Grid.Column="1" Spacing="2" Margin="10,0" VerticalAlignment="Center">
-                                    <TextBlock Text="打开我的 Fork 仓库" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextMainBrush}" />
-                                    <TextBlock Text="{Binding ForkRepoUrl}" FontSize="11" Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas" />
+                                    <TextBlock Text="打开我的 Fork 仓库" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextMainBrush}" />
+                                    <TextBlock Text="{Binding ForkRepoUrl}" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" FontFamily="Consolas" />
                                 </StackPanel>
                                 <Button Grid.Column="2" Classes="btn-ghost" Content="打开 →" Command="{Binding OpenForkRepoCommand}"
-                                        Foreground="{StaticResource AccentBrush}" Padding="12,6" />
+                                        Foreground="{DynamicResource AccentBrush}" Padding="12,6" />
                             </Grid>
 
-                            <Border Height="1" Background="{StaticResource BorderBrushKey}" Margin="0,4" />
+                            <Border Height="1" Background="{DynamicResource BorderBrushKey}" Margin="0,4" />
 
                             <!-- 问题反馈 -->
                             <Grid ColumnDefinitions="40,*,Auto" Margin="0,6">
@@ -272,14 +273,14 @@
                                     <TextBlock Text="💬" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
                                 <StackPanel Grid.Column="1" Spacing="2" Margin="10,0" VerticalAlignment="Center">
-                                    <TextBlock Text="问题反馈" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextMainBrush}" />
-                                    <TextBlock Text="GitHub Issues" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+                                    <TextBlock Text="问题反馈" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextMainBrush}" />
+                                    <TextBlock Text="GitHub Issues" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" />
                                 </StackPanel>
                                 <Button Grid.Column="2" Classes="btn-ghost" Content="打开 →" Command="{Binding OpenIssuesCommand}"
-                                        Foreground="{StaticResource AccentBrush}" Padding="12,6" />
+                                        Foreground="{DynamicResource AccentBrush}" Padding="12,6" />
                             </Grid>
 
-                            <Border Height="1" Background="{StaticResource BorderBrushKey}" Margin="0,4" />
+                            <Border Height="1" Background="{DynamicResource BorderBrushKey}" Margin="0,4" />
 
                             <!-- 为源仓库点 star -->
                             <Grid ColumnDefinitions="40,*,Auto" Margin="0,6">
@@ -287,16 +288,196 @@
                                     <TextBlock Text="⭐" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
                                 <StackPanel Grid.Column="1" Spacing="2" Margin="10,0" VerticalAlignment="Center">
-                                    <TextBlock Text="为源仓库点 star" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextMainBrush}" />
-                                    <TextBlock Text="支持作者 · 已授权可一键点赞" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+                                    <TextBlock Text="为源仓库点 star" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextMainBrush}" />
+                                    <TextBlock Text="支持作者 · 已授权可一键点赞" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" />
                                 </StackPanel>
                                 <Button Grid.Column="2" Classes="btn-ghost" Content="点赞 →" Command="{Binding StarSourceRepoCommand}"
-                                        Foreground="{StaticResource AccentBrush}" Padding="12,6" />
+                                        Foreground="{DynamicResource AccentBrush}" Padding="12,6" />
                             </Grid>
 
                         </StackPanel>
                     </Border>
                 </StackPanel>
+
+                <!-- ============================================================
+                     以下为本 PR 新增区段（推送渠道 / 日志与外观 / 自定义设备号 / 安全检查）
+                     上游此前的卡片结构保持原样，新增内容一律追加在末尾。
+                     ============================================================ -->
+
+                <!-- ===== 推送通知（六渠道） ===== -->
+                <Border Classes="card">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="推送通知" Classes="card-title" />
+                        <TextBlock Classes="page-subtitle" TextWrapping="Wrap"
+                                   Text="签到完成后把结果推送到下列渠道。总开关关闭时任何渠道都不会发送；各渠道还可单独开关。" />
+
+                        <CheckBox Content="签到完成后推送" IsChecked="{Binding NotifyOnCheckin}" />
+                        <CheckBox Content="系统本地通知（右下角弹窗，进 Windows 通知中心）"
+                                  IsChecked="{Binding NotifySystemEnabled}" />
+
+                        <Border Height="1" Background="{DynamicResource BorderBrushKey}" Margin="0,4" />
+
+                        <!-- 飞书（上游既有渠道，配置项沿用 FeishuWebhook） -->
+                        <TextBlock Text="飞书机器人" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextMainBrush}" />
+                        <TextBox Text="{Binding FeishuWebhook}" PlaceholderText="飞书机器人 Webhook 地址" />
+
+                        <Border Height="1" Background="{DynamicResource BorderBrushKey}" Margin="0,4" />
+
+                        <!-- 邮箱：可自定义 SMTP 服务器与端口 -->
+                        <CheckBox Content="邮箱（自定义 SMTP 服务器与端口）" IsChecked="{Binding EmailEnabled}" />
+                        <Grid ColumnDefinitions="*,140">
+                            <TextBox Grid.Column="0" Text="{Binding SmtpHost}"
+                                     PlaceholderText="SMTP 服务器，如 smtp.qq.com" />
+                            <TextBox Grid.Column="1" Text="{Binding SmtpPort}" Margin="8,0,0,0"
+                                     PlaceholderText="端口 465" />
+                        </Grid>
+                        <TextBlock Classes="page-subtitle" TextWrapping="Wrap"
+                                   Text="端口常见取值：465（隐式 SSL）、587（STARTTLS）、25（明文）。下面选择与端口匹配的连接方式。" />
+                        <ComboBox ItemsSource="{Binding SmtpSecurityOptions}" SelectedItem="{Binding SmtpSecurity}"
+                                  HorizontalAlignment="Stretch" />
+                        <TextBox Text="{Binding SmtpUser}" PlaceholderText="用户名（多数邮箱就是完整邮箱地址）" />
+                        <TextBox Text="{Binding SmtpPassword}" PasswordChar="•"
+                                 PlaceholderText="密码 / 授权码（加密落盘，非明文）" />
+                        <Grid ColumnDefinitions="*,*">
+                            <TextBox Grid.Column="0" Text="{Binding SmtpFrom}" PlaceholderText="发件人地址" />
+                            <TextBox Grid.Column="1" Text="{Binding SmtpTo}" Margin="8,0,0,0"
+                                     PlaceholderText="收件人，多个用英文逗号分隔" />
+                        </Grid>
+
+                        <Border Height="1" Background="{DynamicResource BorderBrushKey}" Margin="0,4" />
+
+                        <!-- 通用 Webhook -->
+                        <CheckBox Content="通用 Webhook（自建服务 / Server酱 / PushPlus 等）"
+                                  IsChecked="{Binding WebhookEnabled}" />
+                        <TextBox Text="{Binding WebhookUrl}"
+                                 PlaceholderText="https://…（地址含令牌，将加密落盘）" />
+                        <TextBox Text="{Binding WebhookBodyTemplate}"
+                                 PlaceholderText="{}{&quot;title&quot;:&quot;{title}&quot;,&quot;content&quot;:&quot;{content}&quot;}" />
+                        <TextBox Text="{Binding WebhookContentType}" PlaceholderText="Content-Type，默认 application/json" />
+
+                        <Border Height="1" Background="{DynamicResource BorderBrushKey}" Margin="0,4" />
+
+                        <!-- 钉钉 -->
+                        <CheckBox Content="钉钉群机器人" IsChecked="{Binding DingTalkEnabled}" />
+                        <TextBox Text="{Binding DingTalkWebhook}" PlaceholderText="钉钉机器人 Webhook 地址" />
+                        <TextBox Text="{Binding DingTalkSecret}"
+                                 PlaceholderText="加签密钥 SEC…（机器人安全设置选「加签」时填写，可留空）" />
+
+                        <Border Height="1" Background="{DynamicResource BorderBrushKey}" Margin="0,4" />
+
+                        <!-- 企业微信 -->
+                        <CheckBox Content="企业微信群机器人" IsChecked="{Binding WeComEnabled}" />
+                        <TextBox Text="{Binding WeComWebhook}" PlaceholderText="企业微信机器人 Webhook 地址（已含 key）" />
+
+                        <Border Height="1" Background="{DynamicResource BorderBrushKey}" Margin="0,4" />
+
+                        <!-- Telegram -->
+                        <CheckBox Content="Telegram Bot" IsChecked="{Binding TelegramEnabled}" />
+                        <TextBox Text="{Binding TelegramBotToken}" PasswordChar="•"
+                                 PlaceholderText="Bot Token（可直接粘贴整条 URL，会自动取出 token）" />
+                        <TextBox Text="{Binding TelegramChatId}"
+                                 PlaceholderText="Chat ID（私聊为数字，群为负数）" />
+                        <TextBlock Classes="page-subtitle" TextWrapping="Wrap"
+                                   Text="提示：Telegram 接口在国内网络通常需要代理，测试失败时请先确认网络环境。" />
+
+                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                            <Button Classes="btn-primary" Content="保存推送配置"
+                                    Command="{Binding SaveNotifySettingsCommand}" />
+                            <Button Classes="btn" Content="测试全部渠道"
+                                    Command="{Binding TestAllChannelsCommand}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- ===== 日志与外观 ===== -->
+                <Border Classes="card">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="日志与外观" Classes="card-title" />
+
+                        <CheckBox Content="日志页自动滚动到最新一行" IsChecked="{Binding LogAutoScroll}" />
+
+                        <Border Height="1" Background="{DynamicResource BorderBrushKey}" Margin="0,4" />
+
+                        <TextBlock Text="主题" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextMainBrush}" />
+                        <TextBlock Classes="page-subtitle" TextWrapping="Wrap"
+                                   Text="配色只有 Styles/AppTheme.axaml 一份，按 Light / Dark 两套取值定义；切换即刻生效，无需重启。" />
+                        <ComboBox ItemsSource="{Binding ThemeModeOptions}" SelectedItem="{Binding ThemeMode}"
+                                  HorizontalAlignment="Stretch" />
+
+                        <Button Classes="btn" Content="保存日志设置"
+                                Command="{Binding SaveNotifySettingsCommand}" HorizontalAlignment="Left" />
+                    </StackPanel>
+                </Border>
+
+                <!-- ===== 自定义设备号 ===== -->
+                <Border Classes="card">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="自定义设备号" Classes="card-title" />
+                        <TextBlock Classes="page-subtitle" TextWrapping="Wrap"
+                                   Text="设备号是 Trae 风控识别「同一台设备」的依据：必须是 16 位纯数字，且各账号之间不得重复（重复会返回 9074 参与用户太多）。此处的改动只作用于当前选中的账号。" />
+
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="当前账号设备号：" Classes="page-subtitle" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding DeviceIdText}" Classes="page-subtitle"
+                                       Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+                        </StackPanel>
+
+                        <Grid ColumnDefinitions="*,Auto,Auto">
+                            <TextBox Grid.Column="0" Text="{Binding CustomDeviceId}" MaxLength="16"
+                                     PlaceholderText="16 位数字设备号" />
+                            <Button Grid.Column="1" Classes="btn" Content="随机生成" Margin="8,0,0,0"
+                                    Command="{Binding RandomizeCustomDeviceIdCommand}" />
+                            <Button Grid.Column="2" Classes="btn-primary" Content="保存设备号" Margin="8,0,0,0"
+                                    Command="{Binding SaveCustomDeviceIdCommand}" />
+                        </Grid>
+
+                        <Button Classes="btn" Content="为全部账号换发新设备号（互不重复）"
+                                Command="{Binding RenewAllDeviceIdsCommand}" HorizontalAlignment="Left" />
+                    </StackPanel>
+                </Border>
+
+                <!-- ===== 账号与本地安全检查 ===== -->
+                <Border Classes="card">
+                    <StackPanel Spacing="12">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="账号与本地安全检查" Classes="card-title"
+                                       VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Classes="btn" Content="开始检查"
+                                    Command="{Binding RunSecurityAuditCommand}"
+                                    IsEnabled="{Binding !SecurityAuditRunning}" />
+                        </Grid>
+                        <TextBlock Classes="page-subtitle" TextWrapping="Wrap"
+                                   Text="只做本地可判定的检查（凭证是否明文落盘、设备号是否合规、会话还剩多久、日志有没有漏出凭证），不做网络探测，也不修改任何数据。报告里不会出现敏感值本身。" />
+
+                        <TextBlock Text="{Binding SecuritySummary}" Classes="page-subtitle"
+                                   IsVisible="{Binding HasSecurityFindings}"
+                                   Foreground="{DynamicResource TextMainBrush}" />
+
+                        <ItemsControl ItemsSource="{Binding SecurityFindings}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="sec:SecurityFinding">
+                                    <Border Margin="0,4" CornerRadius="10" Padding="12,10"
+                                            Background="{Binding LevelBgBrush}">
+                                        <Grid ColumnDefinitions="Auto,*">
+                                            <TextBlock Grid.Column="0" Text="{Binding Icon}" FontSize="14"
+                                                       VerticalAlignment="Top" Margin="0,1,8,0" />
+                                            <StackPanel Grid.Column="1" Spacing="3">
+                                                <TextBlock Text="{Binding Title}" FontSize="12.5" FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextMainBrush}" />
+                                                <SelectableTextBlock Text="{Binding Detail}" FontSize="11.5"
+                                                                     TextWrapping="Wrap"
+                                                                     Foreground="{DynamicResource TextMutedBrush}" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
             </StackPanel>
         </ScrollViewer>
 

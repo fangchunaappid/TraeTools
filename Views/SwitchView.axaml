@@ -13,7 +13,7 @@
             <Setter Property="Background" Value="Transparent" />
         </Style>
         <Style Selector="Border.acct-selected">
-            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
             <Setter Property="Background" Value="#1A3B82F6" />
             <Setter Property="BorderThickness" Value="1.5" />
         </Style>
@@ -42,27 +42,27 @@
             <Border Classes="panel">
                 <Grid ColumnDefinitions="*,*,*,*" RowDefinitions="Auto,Auto">
                     <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
-                        <TextBlock Text="用户目录" FontSize="11" Foreground="{StaticResource TextSubBrush}" />
-                        <TextBlock Text="{Binding UserDirectory}" FontSize="12" Foreground="{StaticResource TextMainBrush}" FontFamily="Consolas" TextTrimming="CharacterEllipsis" MaxWidth="180" ToolTip.Tip="{Binding UserDirectory}" />
+                        <TextBlock Text="用户目录" FontSize="11" Foreground="{DynamicResource TextSubBrush}" />
+                        <TextBlock Text="{Binding UserDirectory}" FontSize="12" Foreground="{DynamicResource TextMainBrush}" FontFamily="Consolas" TextTrimming="CharacterEllipsis" MaxWidth="180" ToolTip.Tip="{Binding UserDirectory}" />
                     </StackPanel>
                     <StackPanel Grid.Row="0" Grid.Column="1" Spacing="2">
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                            <TextBlock Grid.Column="0" Text="客户端路径" FontSize="11" Foreground="{StaticResource TextSubBrush}" />
+                            <TextBlock Grid.Column="0" Text="客户端路径" FontSize="11" Foreground="{DynamicResource TextSubBrush}" />
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
                                 <Button Classes="btn" Content="选择文件" FontSize="11" Padding="8,3" Command="{Binding BrowseClientExeCommand}" />
                                 <Button Classes="btn" Content="重新探测" FontSize="11" Padding="8,3" Command="{Binding ReDetectClientExeCommand}" />
                             </StackPanel>
                         </Grid>
-                        <TextBlock Text="{Binding ClientExePath}" FontSize="12" Foreground="{StaticResource TextMainBrush}" FontFamily="Consolas" TextTrimming="CharacterEllipsis" MaxWidth="300" ToolTip.Tip="{Binding ClientExePath}" />
-                        <TextBlock Text="自动探测失败或想指定其他版本时，可手动选择客户端程序或重新探测" FontSize="10" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" MaxWidth="300" />
+                        <TextBlock Text="{Binding ClientExePath}" FontSize="12" Foreground="{DynamicResource TextMainBrush}" FontFamily="Consolas" TextTrimming="CharacterEllipsis" MaxWidth="300" ToolTip.Tip="{Binding ClientExePath}" />
+                        <TextBlock Text="自动探测失败或想指定其他版本时，可手动选择客户端程序或重新探测" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" MaxWidth="300" />
                     </StackPanel>
                     <StackPanel Grid.Row="0" Grid.Column="2" Spacing="2">
-                        <TextBlock Text="载体指纹数" FontSize="11" Foreground="{StaticResource TextSubBrush}" />
-                        <TextBlock Text="{Binding CarrierCount}" FontSize="12" Foreground="{StaticResource TextMainBrush}" />
+                        <TextBlock Text="载体指纹数" FontSize="11" Foreground="{DynamicResource TextSubBrush}" />
+                        <TextBlock Text="{Binding CarrierCount}" FontSize="12" Foreground="{DynamicResource TextMainBrush}" />
                     </StackPanel>
                     <StackPanel Grid.Row="0" Grid.Column="3" Spacing="2">
-                        <TextBlock Text="vault 路径" FontSize="11" Foreground="{StaticResource TextSubBrush}" />
-                        <TextBlock Text="{Binding VaultPath}" FontSize="12" Foreground="{StaticResource TextMainBrush}" FontFamily="Consolas" TextTrimming="CharacterEllipsis" MaxWidth="180" ToolTip.Tip="{Binding VaultPath}" />
+                        <TextBlock Text="vault 路径" FontSize="11" Foreground="{DynamicResource TextSubBrush}" />
+                        <TextBlock Text="{Binding VaultPath}" FontSize="12" Foreground="{DynamicResource TextMainBrush}" FontFamily="Consolas" TextTrimming="CharacterEllipsis" MaxWidth="180" ToolTip.Tip="{Binding VaultPath}" />
                     </StackPanel>
                 </Grid>
             </Border>
@@ -74,7 +74,7 @@
                     <Grid RowDefinitions="Auto,*,Auto" MinHeight="340">
                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
                             <TextBlock Grid.Column="0" Text="账号列表" Classes="card-title" />
-                            <TextBlock Grid.Column="1" Text="{Binding AccountCountText}" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+                            <TextBlock Grid.Column="1" Text="{Binding AccountCountText}" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" />
                         </Grid>
 
                         <!-- ListBox：支持点击选中（SelectedItem 双向绑定） -->
@@ -103,11 +103,11 @@
                             <ListBox.Styles>
                                 <!-- 选中：整卡内部变色（浅蓝底 + 蓝边框）；悬停：仅边框提示 -->
                                 <Style Selector="ListBoxItem:pointerover /template/ Border#Card">
-                                    <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                                 </Style>
                                 <Style Selector="ListBoxItem:selected /template/ Border#Card">
                                     <Setter Property="Background" Value="#1A3B82F6" />
-                                    <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                                     <Setter Property="BorderThickness" Value="1.5" />
                                 </Style>
                             </ListBox.Styles>
@@ -121,14 +121,14 @@
                                             <StackPanel Grid.Column="1" Spacing="3" Margin="12,0" VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" />
                                                 <!-- 脱敏手机号（#14）：掉登录时一眼认出是哪个账号；无数据时隐藏 -->
-                                                <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}" Text="{Binding MobileText}" IsVisible="{Binding ShowMobile}" />
+                                                <TextBlock FontSize="11" Foreground="{DynamicResource TextMutedBrush}" Text="{Binding MobileText}" IsVisible="{Binding ShowMobile}" />
                                                 <StackPanel Orientation="Horizontal" Spacing="4" ClipToBounds="True">
-                                                    <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}" Text="建档 " />
-                                                    <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}" Text="{Binding CreatedAt}" />
-                                                    <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}" Text=" · " />
-                                                    <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}" Text="{Binding Carriers}" />
-                                                    <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}" Text=" 载体 · " />
-                                                    <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}" Text="{Binding Similarity}" />
+                                                    <TextBlock FontSize="11" Foreground="{DynamicResource TextMutedBrush}" Text="建档 " />
+                                                    <TextBlock FontSize="11" Foreground="{DynamicResource TextMutedBrush}" Text="{Binding CreatedAt}" />
+                                                    <TextBlock FontSize="11" Foreground="{DynamicResource TextMutedBrush}" Text=" · " />
+                                                    <TextBlock FontSize="11" Foreground="{DynamicResource TextMutedBrush}" Text="{Binding Carriers}" />
+                                                    <TextBlock FontSize="11" Foreground="{DynamicResource TextMutedBrush}" Text=" 载体 · " />
+                                                    <TextBlock FontSize="11" Foreground="{DynamicResource TextMutedBrush}" Text="{Binding Similarity}" />
                                                 </StackPanel>
                                             </StackPanel>
                                             <Border Grid.Column="2" CornerRadius="999" Padding="10,3" VerticalAlignment="Center"
@@ -158,7 +158,7 @@
                         <Grid ColumnDefinitions="*,Auto">
                             <TextBlock Grid.Column="0" Text="切换守护" Classes="card-title" />
                             <Border Grid.Column="1" Classes="badge-info" Padding="10,3">
-                                <TextBlock Text="5 步流程" FontSize="11" Foreground="{StaticResource AccentBrush}" />
+                                <TextBlock Text="5 步流程" FontSize="11" Foreground="{DynamicResource AccentBrush}" />
                             </Border>
                         </Grid>
                         <ItemsControl ItemsSource="{Binding Steps}">
@@ -170,7 +170,7 @@
                                         </Border>
                                         <StackPanel Grid.Column="1" Spacing="2" Margin="10,0" VerticalAlignment="Center">
                                             <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" />
-                                            <TextBlock Text="{Binding Description}" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+                                            <TextBlock Text="{Binding Description}" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" />
                                         </StackPanel>
                                     </Grid>
                                 </DataTemplate>
