@@ -13,13 +13,13 @@
     <Grid RowDefinitions="Auto,*,Auto" Background="White">
 
         <!-- 标题区 -->
-        <Border Grid.Row="0" Background="#FFF9FAFB" BorderBrush="#FFE2E8F0" BorderThickness="0,0,0,1" Padding="16,14">
-            <TextBlock Text="TRAETOOLS 最终用户许可协议" FontSize="15" FontWeight="Bold" Foreground="#FF0F172A" />
+        <Border Grid.Row="0" Background="{DynamicResource PanelBgBrush}" BorderBrush="{DynamicResource BorderBrushKey}" BorderThickness="0,0,0,1" Padding="16,14">
+            <TextBlock Text="TRAETOOLS 最终用户许可协议" FontSize="15" FontWeight="Bold" Foreground="{DynamicResource TextMainBrush}" />
         </Border>
 
         <!-- 协议正文（可滚动） -->
-        <ScrollViewer Grid.Row="1" Background="#FFFAFAFA">
-            <TextBlock Margin="16,12" FontSize="12.5" Foreground="#FF0F172A" LineHeight="22" TextWrapping="Wrap"
+        <ScrollViewer Grid.Row="1" Background="{DynamicResource DialogScrollBgBrush}">
+            <TextBlock Margin="16,12" FontSize="12.5" Foreground="{DynamicResource TextMainBrush}" LineHeight="22" TextWrapping="Wrap"
                        xml:space="preserve" FontFamily="Microsoft YaHei UI,Segoe UI">
 TRAETOOLS 最终用户许可协议（EULA）
 
@@ -67,10 +67,10 @@ TRAETOOLS 最终用户许可协议（EULA）
         </ScrollViewer>
 
         <!-- 底部：勾选 + 按钮 -->
-        <Border Grid.Row="2" Background="#FFF9FAFB" BorderBrush="#FFE2E8F0" BorderThickness="0,1,0,0" Padding="16,12">
+        <Border Grid.Row="2" Background="{DynamicResource PanelBgBrush}" BorderBrush="{DynamicResource BorderBrushKey}" BorderThickness="0,1,0,0" Padding="16,12">
             <StackPanel Spacing="12">
                 <CheckBox x:Name="AgreeCheck" Content="我已阅读并同意上述协议，且确认本软件仅用于管理本人拥有的账号"
-                          FontSize="12" Foreground="#FF0F172A" HorizontalAlignment="Left" />
+                          FontSize="12" Foreground="{DynamicResource TextMainBrush}" HorizontalAlignment="Left" />
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
                     <Button x:Name="DeclineButton" Content="不同意并退出" MinWidth="130" Height="36"
                             Padding="12,0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Click="OnDeclineClick" />

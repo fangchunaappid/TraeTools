@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:TraeTools.ViewModels"
         xmlns:mdl="using:TraeTools.Models"
+        xmlns:anim="using:Avalonia.Animation"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="720"
@@ -11,6 +12,9 @@
         Width="1100" Height="720"
         MinWidth="940" MinHeight="600"
         WindowStartupLocation="CenterScreen"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        WindowDecorations="BorderOnly"
         Background="{DynamicResource ContentBgBrush}"
         FontFamily="Inter,Microsoft YaHei UI,Segoe UI">
 
@@ -18,111 +22,165 @@
         <vm:MainViewModel />
     </Design.DataContext>
 
-    <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="190" />
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
+    <Window.Styles>
+        <!-- 侧边栏导航：图标与文字跟随按钮状态显式着色（不依赖继承，保证任何主题都清晰） -->
+        <Style Selector="Button.nav-item TextBlock.nav-icon, Button.nav-item TextBlock.nav-label">
+            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+        </Style>
+        <Style Selector="Button.nav-item:pointerover TextBlock.nav-icon, Button.nav-item:pointerover TextBlock.nav-label">
+            <Setter Property="Foreground" Value="{DynamicResource TextMainBrush}" />
+        </Style>
+        <Style Selector="Button.nav-item-active TextBlock.nav-icon, Button.nav-item-active TextBlock.nav-label">
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="Button.nav-item-active:pointerover TextBlock.nav-icon, Button.nav-item-active:pointerover TextBlock.nav-label">
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+    </Window.Styles>
+
+    <Grid ColumnDefinitions="200,*">
 
         <!-- ============ Sidebar ============ -->
         <Border Grid.Column="0" Background="{DynamicResource SidebarBgBrush}">
-            <Grid RowDefinitions="Auto,*,Auto">
-                <!-- Brand area -->
-                <StackPanel Grid.Row="0" Margin="20,26,20,18">
-                    <TextBlock Text="TraeTools" Foreground="White" FontSize="22" FontWeight="Bold" />
-                    <TextBlock Text="签到 · 账号切换 · 用量统计" Foreground="#94A3B8" FontSize="12" Margin="0,4,0,0" />
+            <Grid RowDefinitions="Auto,Auto,*,Auto">
+
+                <!-- 交通灯 + 拖拽区（ElementRole 在代码里标记为 TitleBar / User） -->
+                <Border Grid.Row="0" x:Name="SideTitleBar" Height="40" Background="Transparent">
+                    <StackPanel Classes="traffic" Orientation="Horizontal" Margin="14,0,0,0" VerticalAlignment="Center">
+                        <Button x:Name="BtnClose" Classes="tl tl-close" ToolTip.Tip="关闭到托盘">
+                            <TextBlock Classes="tl-glyph" Text="✕" />
+                        </Button>
+                        <Button x:Name="BtnMin" Classes="tl tl-min" ToolTip.Tip="最小化">
+                            <TextBlock Classes="tl-glyph" Text="−" />
+                        </Button>
+                        <Button x:Name="BtnMax" Classes="tl tl-max" ToolTip.Tip="最大化 / 还原">
+                            <TextBlock Classes="tl-glyph" Text="+" />
+                        </Button>
+                    </StackPanel>
+                </Border>
+
+                <!-- Brand -->
+                <StackPanel Grid.Row="1" Margin="20,2,20,16" Spacing="3">
+                    <TextBlock Text="TraeTools" Foreground="{DynamicResource TextMainBrush}" FontSize="20" FontWeight="Bold" />
+                    <TextBlock Text="签到 · 账号切换 · 用量统计" Foreground="{DynamicResource TextMutedBrush}" FontSize="11" />
                 </StackPanel>
 
                 <!-- Nav items -->
-                <StackPanel Grid.Row="1" Margin="12,8" Spacing="4">
+                <StackPanel Grid.Row="2" Margin="10,4" Spacing="3">
                     <Button Classes="nav-item" Classes.nav-item-active="{Binding IsDashboardActive}"
                             Command="{Binding NavigateCommand}" CommandParameter="dashboard">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="▦" FontSize="14" Width="20" TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="White" />
-                            <TextBlock Text="仪表盘" VerticalAlignment="Center" />
+                            <TextBlock Classes="nav-icon" Text="▦" FontSize="14" Width="20" TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <TextBlock Classes="nav-label" Text="仪表盘" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button Classes="nav-item" Classes.nav-item-active="{Binding IsUsageActive}"
                             Command="{Binding NavigateCommand}" CommandParameter="usage">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Σ" FontSize="14" Width="20" TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="White" />
-                            <TextBlock Text="用量统计" VerticalAlignment="Center" />
+                            <TextBlock Classes="nav-icon" Text="Σ" FontSize="14" Width="20" TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <TextBlock Classes="nav-label" Text="用量统计" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button Classes="nav-item" Classes.nav-item-active="{Binding IsCheckinActive}"
                             Command="{Binding NavigateCommand}" CommandParameter="checkin">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="✓" FontSize="14" Width="20" TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="White" />
-                            <TextBlock Text="每日签到" VerticalAlignment="Center" />
+                            <TextBlock Classes="nav-icon" Text="✓" FontSize="14" Width="20" TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <TextBlock Classes="nav-label" Text="每日签到" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button Classes="nav-item" Classes.nav-item-active="{Binding IsSwitchActive}"
                             Command="{Binding NavigateCommand}" CommandParameter="switch">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="⇄" FontSize="14" Width="20" TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="White" />
-                            <TextBlock Text="账号切换" VerticalAlignment="Center" />
+                            <TextBlock Classes="nav-icon" Text="⇄" FontSize="14" Width="20" TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <TextBlock Classes="nav-label" Text="账号切换" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button Classes="nav-item" Classes.nav-item-active="{Binding IsCloudActive}"
                             Command="{Binding NavigateCommand}" CommandParameter="cloud">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="☁" FontSize="14" Width="20" TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="White" />
-                            <TextBlock Text="云端签到" VerticalAlignment="Center" />
+                            <TextBlock Classes="nav-icon" Text="☁" FontSize="14" Width="20" TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <TextBlock Classes="nav-label" Text="云端签到" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button Classes="nav-item" Classes.nav-item-active="{Binding IsLogActive}"
                             Command="{Binding NavigateCommand}" CommandParameter="log">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="≡" FontSize="14" Width="20" TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="White" />
-                            <TextBlock Text="运行日志" VerticalAlignment="Center" />
+                            <TextBlock Classes="nav-icon" Text="≡" FontSize="14" Width="20" TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <TextBlock Classes="nav-label" Text="运行日志" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button Classes="nav-item" Classes.nav-item-active="{Binding IsSettingsActive}"
                             Command="{Binding NavigateCommand}" CommandParameter="settings">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="⚙" FontSize="14" Width="20" TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="White" />
-                            <TextBlock Text="设置" VerticalAlignment="Center" />
+                            <TextBlock Classes="nav-icon" Text="⚙" FontSize="14" Width="20" TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <TextBlock Classes="nav-label" Text="设置" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                 </StackPanel>
 
-                <!-- Version footer：动态展示版本，与"关于/更新检查"同源，避免写死导致错位 -->
-                <TextBlock Grid.Row="2" Text="{Binding AppVersion}"
-                           Foreground="#64748B" FontSize="11"
+                <!-- Version footer -->
+                <TextBlock Grid.Row="3" Text="{Binding AppVersion}"
+                           Foreground="{DynamicResource TextSubBrush}" FontSize="11"
                            Margin="20,12" />
             </Grid>
         </Border>
 
         <!-- ============ Content Area ============ -->
-        <Grid Grid.Column="1" RowDefinitions="Auto,*">
-            <!-- 顶栏：当前账号下拉切换（本 PR 新增；复用账号切换页的集合与冷切换命令） -->
-            <Border Grid.Row="0" Background="{DynamicResource ContentBgBrush}"
-                    BorderBrush="{DynamicResource BorderBrushKey}" BorderThickness="0,0,0,1"
-                    Padding="28,12">
-                <Grid ColumnDefinitions="Auto,260,Auto,*">
-                    <TextBlock Grid.Column="0" Text="当前账号" Classes="page-subtitle"
-                               VerticalAlignment="Center" Margin="0,0,10,0" />
-                    <ComboBox Grid.Column="1" ItemsSource="{Binding TopAccounts}"
-                              SelectedItem="{Binding TopSelectedAccount}"
-                              HorizontalAlignment="Stretch" VerticalAlignment="Center">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate x:DataType="mdl:AccountInfo">
-                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
-                    <Button Grid.Column="2" Classes="btn" Content="切换" Margin="8,0,0,0"
-                            VerticalAlignment="Center"
-                            Command="{Binding SwitchToSelectedAccountCommand}" />
-                    <TextBlock Grid.Column="3" Text="{Binding TopActiveAccountText}" Classes="page-subtitle"
-                               VerticalAlignment="Center" Margin="14,0,0,0"
-                               TextTrimming="CharacterEllipsis" />
-                </Grid>
-            </Border>
+        <Border Grid.Column="1" Background="{DynamicResource ContentBgBrush}">
+            <Grid RowDefinitions="40,Auto,*">
 
-            <Border Grid.Row="1" Background="{DynamicResource ContentBgBrush}" Padding="28,32">
-                <ContentControl Content="{Binding CurrentPage}" />
-            </Border>
-        </Grid>
+                <!-- 标题栏：左侧拖拽区 + 右侧主题切换（按钮必须在拖拽区之外，否则点击会被标题栏非客户区吞掉） -->
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Height="40">
+                    <Border Grid.Column="0" x:Name="ContentTitleBar" Background="Transparent">
+                        <TextBlock Text="{Binding CurrentPageTitle}"
+                                   Foreground="{DynamicResource TextMainBrush}" FontSize="13" FontWeight="SemiBold"
+                                   VerticalAlignment="Center" Margin="24,0,8,0" />
+                    </Border>
+                    <Button Grid.Column="1" x:Name="BtnTheme" Classes="icon-btn" VerticalAlignment="Center" Margin="0,0,14,0"
+                            Command="{Binding ToggleThemeCommand}" ToolTip.Tip="切换深色 / 明亮">
+                        <Panel>
+                            <TextBlock Text="☾" FontSize="14" IsVisible="{Binding !IsDarkMode}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <TextBlock Text="☀" FontSize="14" IsVisible="{Binding IsDarkMode}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Panel>
+                    </Button>
+                </Grid>
+
+                <!-- 顶栏：当前账号下拉切换（复用账号切换页的账号集合与冷切换命令） -->
+                <Border Grid.Row="1" Background="{DynamicResource ContentBgBrush}"
+                        BorderBrush="{DynamicResource BorderBrushKey}" BorderThickness="0,0,0,1"
+                        Padding="28,12">
+                    <Grid ColumnDefinitions="Auto,260,Auto,*">
+                        <TextBlock Grid.Column="0" Text="当前账号" Classes="page-subtitle"
+                                   VerticalAlignment="Center" Margin="0,0,10,0" />
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding TopAccounts}"
+                                  SelectedItem="{Binding TopSelectedAccount}"
+                                  HorizontalAlignment="Stretch" VerticalAlignment="Center">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="mdl:AccountInfo">
+                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <Button Grid.Column="2" Classes="btn" Content="切换" Margin="8,0,0,0"
+                                VerticalAlignment="Center"
+                                Command="{Binding SwitchToSelectedAccountCommand}" />
+                        <TextBlock Grid.Column="3" Text="{Binding TopActiveAccountText}" Classes="page-subtitle"
+                                   VerticalAlignment="Center" Margin="14,0,0,0"
+                                   TextTrimming="CharacterEllipsis" />
+                    </Grid>
+                </Border>
+
+                <!-- 页面切换动效：整页交叉淡入淡出（不改布局、无位移抖动） -->
+                <Border Grid.Row="2" Padding="28,4,28,28">
+                    <TransitioningContentControl Content="{Binding CurrentPage}">
+                        <TransitioningContentControl.PageTransition>
+                            <anim:CrossFade Duration="0:0:0.20" />
+                        </TransitioningContentControl.PageTransition>
+                    </TransitioningContentControl>
+                </Border>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

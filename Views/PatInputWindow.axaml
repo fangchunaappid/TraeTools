@@ -10,12 +10,12 @@
         Background="White"
         FontFamily="Microsoft YaHei UI,Segoe UI">
     <Grid RowDefinitions="Auto,*,Auto" Background="White">
-        <Border Grid.Row="0" Background="#FFF9FAFB" BorderBrush="#FFE2E8F0" BorderThickness="0,0,0,1" Padding="16,12">
-            <TextBlock Text="粘贴 GitHub Token（PAT）完成授权" FontSize="14" FontWeight="Bold" Foreground="#FF0F172A" />
+        <Border Grid.Row="0" Background="{DynamicResource PanelBgBrush}" BorderBrush="{DynamicResource BorderBrushKey}" BorderThickness="0,0,0,1" Padding="16,12">
+            <TextBlock Text="粘贴 GitHub Token（PAT）完成授权" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource TextMainBrush}" />
         </Border>
         <ScrollViewer Grid.Row="1" Background="White">
             <StackPanel Margin="16,12" Spacing="12">
-                <TextBlock FontSize="12" Foreground="#FF0F172A" LineHeight="20" TextWrapping="Wrap" Text="自动打开 GitHub 创建页可简化操作：
+                <TextBlock FontSize="12" Foreground="{DynamicResource TextMainBrush}" LineHeight="20" TextWrapping="Wrap" Text="自动打开 GitHub 创建页可简化操作：
 1）点下方「打开 GitHub 创建页」进入 Fine-grained Token 页面；Repository access 勾选 TraeTools。
 2）Permissions：Actions / Contents / Pull requests / Secrets / Workflows 均选 Read and write。
 3）生成后把 github_pat_ 开头的 Token 粘贴到下方输入框，点「确定」。" />
@@ -25,7 +25,7 @@
                          PlaceholderText="粘贴 github_pat_ 开头的 Token…" ScrollViewer.VerticalScrollBarVisibility="Auto" />
             </StackPanel>
         </ScrollViewer>
-        <Border Grid.Row="2" Background="#FFF9FAFB" BorderBrush="#FFE2E8F0" BorderThickness="0,1,0,0" Padding="16,10">
+        <Border Grid.Row="2" Background="{DynamicResource PanelBgBrush}" BorderBrush="{DynamicResource BorderBrushKey}" BorderThickness="0,1,0,0" Padding="16,10">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
                 <Button Content="取消" MinWidth="100" Height="34" Padding="12,0"
                         HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Click="OnCancelClick" />

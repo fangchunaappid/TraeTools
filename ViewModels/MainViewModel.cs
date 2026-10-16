@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TraeCheckin;
 using TraeSwitch.Services;
+using TraeTools.Services;
 using TraeTools.Services.Usage;
 
 namespace TraeTools.ViewModels;
@@ -131,6 +132,12 @@ public partial class MainViewModel : ViewModelBase
         _cloud = new CloudViewModel();
         _settings = new SettingsViewModel();
         _settings.LoadExtendedSettings();   // 载入本 PR 新增的推送/日志/主题/设备号配置
+        // 设置页下拉改主题时，标题栏 ☾/☀ 图标同步刷新
+        _settings.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(SettingsViewModel.ThemeMode))
+                OnPropertyChanged(nameof(IsDarkMode));
+        };
         _usage = new UsageViewModel();
         _log = new LogViewModel();
 
@@ -185,6 +192,29 @@ public partial class MainViewModel : ViewModelBase
     public bool IsUsageActive => CurrentPageKey == "usage";
     public bool IsLogActive => CurrentPageKey == "log";
 
+    /// <summary>标题栏显示的当前页面名。</summary>
+    public string CurrentPageTitle => CurrentPageKey switch
+    {
+        "usage" => "用量统计",
+        "checkin" => "每日签到",
+        "switch" => "账号切换",
+        "cloud" => "云端签到",
+        "log" => "运行日志",
+        "settings" => "设置",
+        _ => "仪表盘",
+    };
+
+    /// <summary>标题栏 ☾/☀ 图标状态：跟随当前生效主题实时变化（设置页下拉改动也会同步）。</summary>
+    public bool IsDarkMode => ThemeService.IsDark;
+
+    /// <summary>标题栏快捷开关：在明亮 / 深色之间切换；「跟随系统」仍可在设置页选择。</summary>
+    [RelayCommand]
+    private void ToggleTheme()
+    {
+        _settings.ThemeMode = ThemeService.IsDark ? ThemeService.Light : ThemeService.Dark;
+        OnPropertyChanged(nameof(IsDarkMode));
+    }
+
     partial void OnCurrentPageKeyChanged(string value)
     {
         OnPropertyChanged(nameof(IsDashboardActive));
@@ -194,6 +224,7 @@ public partial class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsSettingsActive));
         OnPropertyChanged(nameof(IsUsageActive));
         OnPropertyChanged(nameof(IsLogActive));
+        OnPropertyChanged(nameof(CurrentPageTitle));
     }
 
     /// <summary>账号管理切换激活账号后：仪表盘完整刷新 + 签到页 + 账号状态同步 + 用量页联动。</summary>

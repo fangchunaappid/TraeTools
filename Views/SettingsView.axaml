@@ -208,6 +208,27 @@
                     </Border>
                 </Grid>
 
+                <!-- ===== Client Update Guard ===== -->
+                <Border Classes="card">
+                    <StackPanel Spacing="14">
+                        <TextBlock Text="客户端更新" Classes="card-title" />
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Grid.Column="0" Spacing="2">
+                                <TextBlock Text="屏蔽客户端更新提示" FontSize="13" FontWeight="SemiBold" />
+                                <TextBlock Text="写入客户端配置 update.mode=manual，停止其定时检查更新，从而不再弹出新版本提示；「手动检查更新」入口仍保留"
+                                           FontSize="11" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" IsChecked="{Binding SuppressClientUpdate}" OnContent="" OffContent="" />
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="当前 update.mode：" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" />
+                            <TextBlock Text="{Binding UpdateModeText}" FontSize="11" Foreground="{DynamicResource TextMainBrush}" FontFamily="Consolas" />
+                        </StackPanel>
+                        <TextBlock Text="开启时会自动整份备份客户端 settings.json，关闭开关即按备份还原该键；改动需重启客户端后生效（本软件不会自动重启客户端）。"
+                                   FontSize="10" Foreground="{DynamicResource TextSubBrush}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
                 <!-- ===== About Section ===== -->
                 <StackPanel Spacing="12">
                     <TextBlock Text="关于 TraeTools" Classes="page-title" FontSize="18" />

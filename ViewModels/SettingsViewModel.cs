@@ -90,6 +90,38 @@ public partial class SettingsViewModel : ViewModelBase
 
     private int _lastUpdatePct = -1;
 
+    /// <summary>是否已屏蔽客户端自动更新检查（对应客户端配置 update.mode = manual）。</summary>
+    [ObservableProperty]
+    private bool _suppressClientUpdate;
+
+    /// <summary>当前客户端 update.mode 取值展示（未设置时显示占位符）。</summary>
+    [ObservableProperty]
+    private string _updateModeText = "—";
+
+    /// <summary>开关变动立即写入客户端配置（同开机自启：无需点「保存设置」）。</summary>
+    partial void OnSuppressClientUpdateChanged(bool value)
+    {
+        try
+        {
+            var msg = UpdateGuard.Apply(value);
+            UpdateModeText = UpdateGuard.ReadMode() ?? "（未设置）";
+            PushStatus = msg;
+            AccountHelpers.AppLog("account", "", $"客户端更新开关：{(value ? "开启屏蔽" : "恢复检查")}，update.mode={UpdateModeText}");
+        }
+        catch (Exception ex)
+        {
+            // 写入失败：把 UI 回滚到配置的真实状态，避免开关显示与实际不一致
+            try
+            {
+                _suppressClientUpdate = UpdateGuard.IsSuppressed();
+                OnPropertyChanged(nameof(SuppressClientUpdate));
+                UpdateModeText = UpdateGuard.ReadMode() ?? "（未设置）";
+            }
+            catch { /* 忽略 */ }
+            PushStatus = "更新开关设置失败：" + ex.Message;
+        }
+    }
+
     public ObservableCollection<AccountInfo> Accounts { get; } = new();
 
     /// <summary>账号管理中当前选中的账号（联动 Token 面板显示对应凭证）。</summary>
@@ -137,6 +169,14 @@ public partial class SettingsViewModel : ViewModelBase
             }
         }
         catch { /* 保留默认值 */ }
+
+        // 客户端更新开关：直接读客户端配置初始化（写字段而非属性，避免构造期触发写入）
+        try
+        {
+            _suppressClientUpdate = UpdateGuard.IsSuppressed();
+            UpdateModeText = UpdateGuard.ReadMode() ?? "（未设置）";
+        }
+        catch { /* 读取失败保留默认值 */ }
 
         PopulateAccounts();
 

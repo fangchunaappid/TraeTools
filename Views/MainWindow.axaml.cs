@@ -1,8 +1,13 @@
 using System;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Chrome;
 using Avalonia.Controls.Notifications;
+using Avalonia.Input;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
+using TraeTools.Services;
 using TraeTools.ViewModels;
 
 namespace TraeTools.Views;
@@ -30,6 +35,8 @@ public partial class MainWindow : Window
         }
         catch { /* 图标加载失败不影响主程序 */ }
 
+        SetupWindowChrome();
+
         // 自动签到定时器：每 30 秒检查一次，到点且当天未签时自动签到
         _autoCheckinTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         // 防重入：上一轮未结束则跳过本轮，避免长任务在常驻托盘场景下叠加（#33）
@@ -52,11 +59,64 @@ public partial class MainWindow : Window
         Closing += OnWindowClosing;
     }
 
+    /// <summary>
+    /// 自绘无边框外壳：把标题栏区域标记为 TitleBar（由系统接管拖拽/双击最大化/贴靠），
+    /// 交通灯与主题按钮标记为 User（穿透装饰区、正常接收点击）；并挂接交通灯行为与代码兜底拖拽。
+    /// </summary>
+    private void SetupWindowChrome()
+    {
+        try
+        {
+            WindowDecorationProperties.SetElementRole(SideTitleBar, WindowDecorationsElementRole.TitleBar);
+            WindowDecorationProperties.SetElementRole(ContentTitleBar, WindowDecorationsElementRole.TitleBar);
+            // 标题栏内的可交互控件必须标记为 User，否则点击会被系统当作标题栏非客户区吞掉
+            foreach (Control b in new Control[] { BtnClose, BtnMin, BtnMax, BtnTheme })
+                WindowDecorationProperties.SetElementRole(b, WindowDecorationsElementRole.User);
+        }
+        catch { /* 平台不支持该机制时，下面挂的代码拖拽兜底仍然可用 */ }
+
+        BtnClose.Click += (_, _) => Close();
+        BtnMin.Click += (_, _) => WindowState = WindowState.Minimized;
+        BtnMax.Click += (_, _) => ToggleMaximize();
+
+        // 兜底：若平台未接管标题栏，则由代码完成拖拽与双击最大化
+        SideTitleBar.PointerPressed += TitleBar_PointerPressed;
+        ContentTitleBar.PointerPressed += TitleBar_PointerPressed;
+        SideTitleBar.DoubleTapped += TitleBar_DoubleTapped;
+        ContentTitleBar.DoubleTapped += TitleBar_DoubleTapped;
+    }
+
+    private void ToggleMaximize()
+        => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+
+    /// <summary>标题栏空白处按下 → 拖动窗口；落在按钮上则交给按钮处理。</summary>
+    private void TitleBar_PointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        if (e.Source is Visual v && v.FindAncestorOfType<Button>(includeSelf: true) != null) return;
+        BeginMoveDrag(e);
+    }
+
+    private void TitleBar_DoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (e.Source is Visual v && v.FindAncestorOfType<Button>(includeSelf: true) != null) return;
+        ToggleMaximize();
+    }
+
     protected override void OnOpened(EventArgs e)
     {
         base.OnOpened(e);
+        WindowChrome.ApplyCorners(this);
         OnOpenedEulaCheck();
         _autoCheckinTimer.Start();
+    }
+
+    /// <summary>窗口状态变化（最大化/还原）时刷新 DWM 圆角：最大化不圆角，避免四角露白。</summary>
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == WindowStateProperty)
+            WindowChrome.ApplyCorners(this);
     }
 
     protected override void OnClosed(EventArgs e)
@@ -161,5 +221,3 @@ public partial class MainWindow : Window
         }
     }
 }
-
-

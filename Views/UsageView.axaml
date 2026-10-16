@@ -115,9 +115,12 @@
                             <TextBlock Grid.Column="0" Text="逐会话用量" Classes="card-title" />
                             <TextBlock Grid.Column="1" Text="最多展示 500 条，汇总按全部" FontSize="11" Foreground="{DynamicResource TextSubBrush}" />
                         </Grid>
+                        <!-- AllowAutoHide 必须显式设在 ListBox 上：其模板内嵌 ScrollViewer 用 TemplateBinding 取该值
+                             （Template 优先级高于 App 层样式），不显式设置会退回覆盖模式，滑轨会压住右侧分值 -->
                         <ListBox Grid.Row="1" ItemsSource="{Binding Sessions}" Background="Transparent"
                                  Focusable="False" Margin="0,6,0,0"
-                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.AllowAutoHide="False">
                             <ListBox.Styles>
                                 <Style Selector="ListBoxItem">
                                     <Setter Property="Padding" Value="0" />
