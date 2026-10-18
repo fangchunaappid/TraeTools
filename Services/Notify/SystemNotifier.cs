@@ -6,7 +6,9 @@ using Avalonia.Threading;
 namespace TraeTools.Services.Notify;
 
 /// <summary>
-/// 系统本地通知：走主窗口的 <see cref="WindowNotificationManager"/>（右下角通知，进系统通知中心）。
+/// 系统本地通知：走主界面的 <see cref="WindowNotificationManager"/>（右下角通知，进系统通知中心）。
+/// 宿主取 <see cref="TopLevel"/>（而非 <c>Window</c>）：桌面端为 MainWindow，
+/// Android 单视图平台没有 Window，宿主是承载单视图的根 TopLevel。
 ///
 /// 定位说明：这是「本机在跑的时候」的即时反馈，属补充手段——
 /// 云端签到由 GitHub Actions 执行，那一刻本机很可能并未开机，
@@ -28,13 +30,13 @@ public static class SystemNotifier
     {
         try
         {
-            var win = TraeTools.ViewModels.UiHost.MainWindow;
-            if (win == null)
+            var host = TraeTools.ViewModels.UiHost.MainWindow;
+            if (host == null)
                 return NotifyResult.Fail("系统通知不可用：主窗口尚未就绪（请先打开主界面再试）");
 
             // 签到流程可能跑在后台线程，而通知管理器只能在 UI 线程使用，故切回 UI 线程。
-            if (Dispatcher.UIThread.CheckAccess()) ShowCore(win, title, body);
-            else Dispatcher.UIThread.Post(() => ShowCore(win, title, body));
+            if (Dispatcher.UIThread.CheckAccess()) ShowCore(host, title, body);
+            else Dispatcher.UIThread.Post(() => ShowCore(host, title, body));
 
             return NotifyResult.Ok0("已发送系统通知");
         }
@@ -48,11 +50,11 @@ public static class SystemNotifier
     /// 实际的投递动作。内部再兜一层 try/catch：通知失败绝不应该冒泡到签到主流程
     /// （调用方已返回成功，此处失败只影响这一次提示）。
     /// </summary>
-    private static void ShowCore(Window win, string title, string body)
+    private static void ShowCore(TopLevel host, string title, string body)
     {
         try
         {
-            _manager ??= new WindowNotificationManager(win)
+            _manager ??= new WindowNotificationManager(host)
             {
                 Position = NotificationPosition.BottomRight,
                 MaxItems = 3,
