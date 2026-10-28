@@ -227,6 +227,8 @@ def main():
         print("错误：缺少环境变量 TRAE_SESSION")
         sys.exit(1)
     webhook = os.environ.get("FEISHU_WEBHOOK", "").strip()
+    # 到期检查每次运行都执行（打印剩余天数日志），提醒行仅在真正推送时附带
+    expiry_lines = expire_warnings()
     ok_names, fail_names = [], []
     rerun_flags = []    # 标记各成功账号是否为「今日已签到」的重跑（重跑不推送，防重复）
     lines = []          # 每账号一行的明细（签到结果 + 所得 + 余额），用于推送
@@ -319,7 +321,7 @@ def main():
     elif webhook and (ok_names or fail_names):
         summary = ["Trae 多账号签到结果", "时间：%s" % beijing_now_str()]
         summary.extend(lines)
-        summary.extend(expire_warnings())
+        summary.extend(expiry_lines)
         notify_feishu(webhook, "\n".join(summary))
     if not all_ok:
         sys.exit(1)
