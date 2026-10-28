@@ -176,6 +176,31 @@ def beijing_now_str():
     return (datetime.datetime.utcnow() + datetime.timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
 
 
+def beijing_today():
+    """返回北京时间的今天（date 对象）。"""
+    return (datetime.datetime.utcnow() + datetime.timedelta(hours=8)).date()
+
+
+def expire_warnings():
+    """会话到期提醒：读环境变量 TRAE_SESSION_EXPIRE（可选，YYYY-MM-DD，北京时间）。
+    剩 1 天（明天到期）或当天到期时返回提醒行；未配置或还早则返回空列表。"""
+    exp = os.environ.get("TRAE_SESSION_EXPIRE", "").strip()
+    if not exp:
+        return []
+    try:
+        ed = datetime.datetime.strptime(exp, "%Y-%m-%d").date()
+    except ValueError:
+        print("[会话] TRAE_SESSION_EXPIRE 格式应为 YYYY-MM-DD，当前值无效: %r" % exp)
+        return []
+    left = (ed - beijing_today()).days
+    print("[会话] 到期日=%s，剩余=%d 天" % (exp, left))
+    if left == 1:
+        return ["⚠️ TRAE 会话明天（%s）到期，请在 TraeTools 重新登录并重新部署（选择「保留现有 fork」），否则签到将失效" % exp]
+    if left <= 0:
+        return ["⚠️ TRAE 会话今天（%s）已到期，请立即在 TraeTools 重新登录并重新部署（选择「保留现有 fork」）" % exp]
+    return []
+
+
 def iter_sessions():
     """按顺序产出 (账号序号, session, device_id)。账号 1 读 TRAE_SESSION；
     之后依次读 TRAE_SESSION_2, TRAE_SESSION_3… 直到缺空为止。"""
@@ -294,6 +319,7 @@ def main():
     elif webhook and (ok_names or fail_names):
         summary = ["Trae 多账号签到结果", "时间：%s" % beijing_now_str()]
         summary.extend(lines)
+        summary.extend(expire_warnings())
         notify_feishu(webhook, "\n".join(summary))
     if not all_ok:
         sys.exit(1)
