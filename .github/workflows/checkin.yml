@@ -36,5 +36,6 @@ jobs:
           TRAE_DEVICE_ID_3: ${{ secrets.TRAE_DEVICE_ID_3 }}
           TRAE_SESSION_4: ${{ secrets.TRAE_SESSION_4 }}
           TRAE_DEVICE_ID_4: ${{ secrets.TRAE_DEVICE_ID_4 }}
+          TRAE_SESSION_EXPIRE: ${{ secrets.TRAE_SESSION_EXPIRE }}
           FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
         run: python checkin.py
