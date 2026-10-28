@@ -2,9 +2,14 @@ name: Trae Daily Checkin
 
 on:
   schedule:
-    # 北京时间每天 00:05（UTC 16:05）
+    # 北京时间每天 00:05（UTC 16:05）—— 兜底触发（GitHub 免费调度有延迟）
     - cron: "5 16 * * *"
   workflow_dispatch: {}
+
+# 串行锁：外部触发与 schedule 重叠时排队执行，后跑的会检测到「今日已签到」并不重复推送
+concurrency:
+  group: trae-checkin
+  cancel-in-progress: false
 
 permissions:
   contents: read
