@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Trae 每日签到脚本（GitHub Actions 版 · 增强推送）
-在原版基础上：推送内容增加「每账号签到结果明细 + 剩余积分余额」。
+Trae 每日签到脚本（GitHub Actions 版 · 增强推送 v2）
+v2 修复：
+  1. 「获得积分」此前取自 claim 响应（该响应不含积分，恒为 0）；
+     现改为对齐 TraeTools 桌面端逻辑：签到后查询 status 接口解析本次所得
+     （credits = 基础签到所得；extra_credits 为连签加成、仅会员到账）。
+  2. 「余额」此前在签到后立即查询，资格包接口存在延迟可能返回旧值；
+     现改为签到前记录 pre 余额，签到后重试查询直到余额 >= pre + 本次所得。
 原理：
   Trae 网页端的 JWT 只有 8 小时有效期，但真正的会话凭证是 HttpOnly Cookie
   `X-Cloudide-Session`（约 14 天有效）。本脚本通过该 Cookie 调用
@@ -73,12 +78,36 @@ def get_token(session: str) -> str:
 
 
 def checkin(token: str, device_id: str) -> dict:
-    """执行每日签到（claim）。"""
+    """执行每日签到（claim）。注意：claim 响应不含本次所得积分。"""
     status, text = _post("/trae/api/v2/ug/checkin_credits/claim", _auth_headers(token, device_id), "{}")
     try:
         return {"http": status, "body": json.loads(text)}
     except json.JSONDecodeError:
         return {"http": status, "body": {"raw": text}}
+
+
+def checkin_status(token: str, device_id: str) -> dict:
+    """查询今日签到状态：checked_in / credits（基础所得）/ extra_credits（连签加成）。"""
+    status, text = _post("/trae/api/v2/ug/checkin_credits/status", _auth_headers(token, device_id), "{}")
+    try:
+        return {"http": status, "body": json.loads(text)}
+    except json.JSONDecodeError:
+        return {"http": status, "body": {}}
+
+
+def resolve_gained(status_body: dict, is_member: bool = False) -> float:
+    """对齐 TraeTools 桌面端 CheckinEvaluator.ResolveGainedCredits：
+    仅当 code=0 且 checked_in=True 时数值可信；非会员只计 credits，会员额外计入 extra_credits。"""
+    try:
+        code = status_body.get("code", -1)
+        checked = bool(status_body.get("checked_in", False))
+        if code != 0 or not checked:
+            return 0.0
+        credits = _as_num(status_body.get("credits", 0))
+        extra = _as_num(status_body.get("extra_credits", 0))
+        return credits + (extra if is_member else 0.0)
+    except Exception:
+        return 0.0
 
 
 def _as_num(v):
@@ -174,7 +203,7 @@ def main():
         sys.exit(1)
     webhook = os.environ.get("FEISHU_WEBHOOK", "").strip()
     ok_names, fail_names = [], []
-    lines = []          # 每账号一行的明细（签到结果 + 余额），用于推送
+    lines = []          # 每账号一行的明细（签到结果 + 所得 + 余额），用于推送
     all_ok = True
     for index, session, device_id in accounts:
         # 多账号之间错开 3~6 秒随机间隔，降低请求密度，规避 9074「参与用户太多」风控
@@ -186,6 +215,25 @@ def main():
         try:
             token = get_token(session)
             print("[%s] 已换取新 JWT，长度=%d" % (name, len(token)))
+
+            # 签到前状态：若今日已签过，则本次运行不产生新积分（重跑场景如实记 0）
+            pre = checkin_status(token, device_id)
+            pre_code = pre["body"].get("code", -1)
+            pre_checked = bool(pre["body"].get("checked_in", False))
+            print("[%s] 签到前 status：code=%s, checked_in=%s" % (name, pre_code, pre_checked))
+            already = (pre["http"] == 200) and (pre_code == 0) and pre_checked
+
+            # 签到前余额（用于签到后刷新校验）
+            pre_balance = get_remaining_credits(token, device_id)
+            print("[%s] 签到前余额：%s" % (name, _fmt_num(pre_balance)))
+
+            if already:
+                balance = pre_balance if pre_balance >= 0 else get_remaining_credits(token, device_id)
+                print("[%s] 今日已签到过，本次获得：0 积分" % name)
+                ok_names.append(name)
+                lines.append("✅ %s：今日已签到，获得 0 积分，余额 %s" % (name, _fmt_num(balance)))
+                continue
+
             result = checkin(token, device_id)
             body = result["body"]
             code = body.get("code", -1)
@@ -199,25 +247,37 @@ def main():
                 result = checkin(token, device_id)
                 body = result["body"]
                 code = body.get("code", -1)
+
             checked = body.get("checked_in", False)
             ok = (result["http"] == 200) and (code == 0 or checked)
-            credits = body.get("credits", 0)
-            if ok:
-                gained = _fmt_num(_as_num(credits))
-                # 签到刚完成，资格包可能尚未刷新：余额查询失败时等 3 秒重试一次
-                balance = get_remaining_credits(token, device_id)
-                if balance < 0:
-                    time.sleep(3)
-                    balance = get_remaining_credits(token, device_id)
-                print("[%s] 签到成功，本次获得：%s 积分，剩余：%s" % (name, gained, _fmt_num(balance)))
-                ok_names.append(name)
-                lines.append("✅ %s：签到成功，获得 %s 积分，余额 %s" % (name, gained, _fmt_num(balance)))
-            else:
+            if not ok:
                 reason = body.get("message") or ("HTTP %s" % result["http"])
                 print("[%s] 签到失败：%s" % (name, reason))
                 fail_names.append(name)
                 all_ok = False
                 lines.append("❌ %s：签到失败：%s" % (name, reason))
+                continue
+
+            # claim 响应不含所得积分：对齐桌面端，签到后再查 status 解析本次所得
+            after = checkin_status(token, device_id)
+            gained = resolve_gained(after["body"])
+            print("[%s] 签到后 status：code=%s, checked_in=%s, credits=%s, extra_credits=%s → gained=%s"
+                  % (name, after["body"].get("code", -1), after["body"].get("checked_in", False),
+                     after["body"].get("credits", 0), after["body"].get("extra_credits", 0), gained))
+
+            # 余额刷新：资格包接口可能有延迟，签到后余额应 >= pre + gained，否则等待重试
+            balance = get_remaining_credits(token, device_id)
+            tries = 0
+            while (pre_balance >= 0 and balance >= 0
+                   and balance < pre_balance + gained and tries < 4):
+                tries += 1
+                print("[%s] 余额未刷新（%s < %s），第 %d 次等待重试…" % (name, balance, pre_balance + gained, tries))
+                time.sleep(4)
+                balance = get_remaining_credits(token, device_id)
+
+            print("[%s] 签到成功，本次获得：%s 积分，剩余：%s" % (name, _fmt_num(gained), _fmt_num(balance)))
+            ok_names.append(name)
+            lines.append("✅ %s：签到成功，获得 %s 积分，余额 %s" % (name, _fmt_num(gained), _fmt_num(balance)))
         except Exception as e:
             print("[%s] 签到异常: %s" % (name, e))
             fail_names.append(name)
