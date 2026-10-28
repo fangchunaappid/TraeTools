@@ -203,6 +203,7 @@ def main():
         sys.exit(1)
     webhook = os.environ.get("FEISHU_WEBHOOK", "").strip()
     ok_names, fail_names = [], []
+    rerun_flags = []    # 标记各成功账号是否为「今日已签到」的重跑（重跑不推送，防重复）
     lines = []          # 每账号一行的明细（签到结果 + 所得 + 余额），用于推送
     all_ok = True
     for index, session, device_id in accounts:
@@ -231,6 +232,7 @@ def main():
                 balance = pre_balance if pre_balance >= 0 else get_remaining_credits(token, device_id)
                 print("[%s] 今日已签到过，本次获得：0 积分" % name)
                 ok_names.append(name)
+                rerun_flags.append(True)
                 lines.append("✅ %s：今日已签到，获得 0 积分，余额 %s" % (name, _fmt_num(balance)))
                 continue
 
@@ -283,10 +285,15 @@ def main():
             fail_names.append(name)
             all_ok = False
             lines.append("❌ %s：签到异常：%s" % (name, e))
-    # 汇总一条飞书推送（无论成功/失败都推送，webhook 为空则跳过）
-    summary = ["Trae 多账号签到结果", "时间：%s" % beijing_now_str()]
-    summary.extend(lines)
-    if webhook and (ok_names or fail_names):
+    # 汇总一条飞书推送（webhook 为空则跳过）。
+    # 防重复：若本次运行所有成功账号都是「今日已签到」的重跑且无失败，则不推送
+    # （首个触发源已推送过；本运行仅作为 schedule 兜底/串行队列中的重复触发）。
+    rerun_only = all_ok and ok_names and len(rerun_flags) == len(ok_names)
+    if rerun_only:
+        print("所有账号今日均已签到，跳过推送（避免重复）")
+    elif webhook and (ok_names or fail_names):
+        summary = ["Trae 多账号签到结果", "时间：%s" % beijing_now_str()]
+        summary.extend(lines)
         notify_feishu(webhook, "\n".join(summary))
     if not all_ok:
         sys.exit(1)
