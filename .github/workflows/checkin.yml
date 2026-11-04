@@ -70,6 +70,7 @@ jobs:
           TRAE_CLIENT_DEVICE_PUB_PEM: ${{ secrets.TRAE_CLIENT_DEVICE_PUB_PEM }}
           TRAE_CLIENT_DEVICE_ID: ${{ secrets.TRAE_CLIENT_DEVICE_ID }}
           TRAE_CLIENT_MACHINE_ID: ${{ secrets.TRAE_CLIENT_MACHINE_ID }}
+          TRAE_CLIENT_DEVICE_INFO: ${{ secrets.TRAE_CLIENT_DEVICE_INFO }}
         run: python checkin.py
 
       - name: Encrypt token cache
