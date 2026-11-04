@@ -77,6 +77,37 @@ def get_token(session: str) -> str:
     return token
 
 
+def get_user_info(token: str, session: str):
+    """拉取账号资料（/cloudide/api/v3/trae/GetUserInfo）：UID/昵称/脱敏手机号。
+    与桌面端 TraeApiClient.GetUserProfileAsync 同款，逆向自 www.trae.cn/dashboard。
+    成功返回「昵称（手机号）」标签；失败返回 None（调用方降级为「账号 N」）。"""
+    headers = {
+        "Authorization": "Cloud-IDE-JWT " + token,
+        "Cookie": "X-Cloudide-Session=" + session,
+        "Referer": "https://www.trae.cn/",
+        "Origin": "https://www.trae.cn",
+        "User-Agent": "TraeCheckin/1.0",
+        "Accept": "application/json, text/plain, */*",
+    }
+    status, text = _post("/cloudide/api/v3/trae/GetUserInfo", headers)
+    if status != 200:
+        print("[资料] GetUserInfo HTTP %s，降级为编号显示" % status)
+        return None
+    try:
+        result = (json.loads(text).get("Result") or {})
+    except json.JSONDecodeError:
+        print("[资料] GetUserInfo 响应解析失败，降级为编号显示")
+        return None
+    screen_name = (result.get("ScreenName") or "").strip()
+    user_id = (result.get("UserID") or "").strip()
+    mobile = (result.get("NonPlainTextMobile") or "").strip()
+    label = screen_name or user_id
+    if not label:
+        return None
+    if mobile:
+        label += "（%s）" % mobile
+    return label
+
 def checkin(token: str, device_id: str) -> dict:
     """执行每日签到（claim）。注意：claim 响应不含本次所得积分。"""
     status, text = _post("/trae/api/v2/ug/checkin_credits/claim", _auth_headers(token, device_id), "{}")
@@ -239,10 +270,17 @@ def main():
             time.sleep(random.uniform(3, 6))
         name = "账号 %d" % index
         device_id = device_id or random_device_id()
-        print("[%s] device_id=%s" % (name, device_id))
         try:
             token = get_token(session)
             print("[%s] 已换取新 JWT，长度=%d" % (name, len(token)))
+
+            # 拉取账号资料（昵称/脱敏手机号），失败降级为「账号 N」
+            profile = get_user_info(token, session)
+            if profile:
+                name = "账号 %d·%s" % (index, profile)
+                print("[%s] 识别成功" % name)
+            else:
+                print("[%s] 未获取到昵称，沿用编号显示" % name)
 
             # 签到前状态：若今日已签过，则本次运行不产生新积分（重跑场景如实记 0）
             pre = checkin_status(token, device_id)
