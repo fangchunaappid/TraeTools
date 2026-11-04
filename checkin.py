@@ -22,9 +22,12 @@ v2 修复：
 用法：
   python checkin.py
 """
+import base64
 import datetime
+import hashlib
 import json
 import os
+import platform
 import random
 import sys
 import time
@@ -34,9 +37,11 @@ BASE = "https://api.trae.cn"
 
 
 def _post(path, headers, body=""):
-    """POST 请求。非 2xx 不抛 HTTPError，而是以 (status, body) 正常返回，便于上层判断原因。"""
+    """POST 请求。非 2xx 不抛 HTTPError，而是以 (status, body) 正常返回，便于上层判断原因。
+    path 支持绝对 URL（OAuth 兑换端点在 api.trae.com.cn 域）。"""
     import urllib.error
-    req = urllib.request.Request(BASE + path, data=body.encode("utf-8"), headers=headers, method="POST")
+    url = path if path.startswith("http") else BASE + path
+    req = urllib.request.Request(url, data=body.encode("utf-8"), headers=headers, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             return resp.status, resp.read().decode("utf-8", errors="replace")
@@ -55,8 +60,9 @@ def _auth_headers(token, device_id):
     }
 
 
-def get_token(session: str) -> str:
-    """用 X-Cloudide-Session Cookie 换取全新 JWT。"""
+def get_token_full(session: str):
+    """用 X-Cloudide-Session Cookie 换取全新 JWT，返回 (token, Result 字典)。
+    Result 里若带 RefreshToken，调用方可借此引导进入链式续期模式。"""
     headers = {
         "Cookie": "X-Cloudide-Session=" + session,
         "Referer": "https://www.trae.cn/",
@@ -66,7 +72,8 @@ def get_token(session: str) -> str:
     }
     status, text = _post("/cloudide/api/v3/common/GetUserToken", headers)
     data = json.loads(text)
-    token = (data.get("Result") or {}).get("Token")
+    result = data.get("Result") or {}
+    token = result.get("Token")
     if status == 401:
         raise RuntimeError(
             "账号会话已失效(HTTP 401)：X-Cloudide-Session 可能已过期(~14天有效期)。"
@@ -74,21 +81,28 @@ def get_token(session: str) -> str:
             "原始返回: " + text[:200])
     if status != 200 or not token:
         raise RuntimeError("GetUserToken 失败: HTTP %s %s" % (status, text[:200]))
-    return token
+    return token, result
+
+
+def get_token(session: str) -> str:
+    """用 X-Cloudide-Session Cookie 换取全新 JWT（只返回 token 的简化封装）。"""
+    return get_token_full(session)[0]
 
 
 def get_user_info(token: str, session: str):
     """拉取账号资料（/cloudide/api/v3/trae/GetUserInfo）：UID/昵称/脱敏手机号。
     与桌面端 TraeApiClient.GetUserProfileAsync 同款，逆向自 www.trae.cn/dashboard。
-    成功返回「昵称（手机号）」标签；失败返回 None（调用方降级为「账号 N」）。"""
+    成功返回「昵称（手机号）」标签；失败返回 None（调用方降级为「账号 N」）。
+    session 可为空（纯 refreshToken 模式下没有 Cookie，此时省略 Cookie 头）。"""
     headers = {
         "Authorization": "Cloud-IDE-JWT " + token,
-        "Cookie": "X-Cloudide-Session=" + session,
         "Referer": "https://www.trae.cn/",
         "Origin": "https://www.trae.cn",
         "User-Agent": "TraeCheckin/1.0",
         "Accept": "application/json, text/plain, */*",
     }
+    if session:
+        headers["Cookie"] = "X-Cloudide-Session=" + session
     status, text = _post("/cloudide/api/v3/trae/GetUserInfo", headers)
     if status != 200:
         print("[资料] GetUserInfo HTTP %s，降级为编号显示" % status)
@@ -232,18 +246,254 @@ def expire_warnings():
     return []
 
 
-def iter_sessions():
-    """按顺序产出 (账号序号, session, device_id)。账号 1 读 TRAE_SESSION；
-    之后依次读 TRAE_SESSION_2, TRAE_SESSION_3… 直到缺空为止。"""
-    s = os.environ.get("TRAE_SESSION", "").strip()
-    if s:
-        yield 1, s, os.environ.get("TRAE_DEVICE_ID", "").strip()
+# ══════════════════ Token 链式续期 ══════════════════
+# 机制借鉴 L0NE-6/Trae-AutoCheckin（MIT License）：
+#   用 refreshToken 调 OAuth ExchangeToken 换新 accessToken 时，服务端会
+#   同时轮换出新 refreshToken；脚本立即把新值回写本地缓存（Actions 下由
+#   加密 state 缓存跨运行持久化）。只要链不断，凭证长期不过期，
+#   彻底摆脱 X-Cloudide-Session 的 ~14 天手动续命死线。
+# 优先级：TRAE_REFRESH_TOKEN(_N) / 缓存中的 refreshToken → 链式续期；
+#         否则回退 Session Cookie 模式（并尝试从 GetUserToken 响应引导）。
+
+OAUTH_HOST = "https://api.trae.com.cn"
+EP_EXCHANGE = OAUTH_HOST + "/cloudide/api/v3/trae/oauth/ExchangeToken"        # 旧版
+EP_EXCHANGE_PROOF = "https://api.trae.cn/trae/api/v3/oauth/ExchangeToken"     # 新版：需设备证明
+CLIENT_ID_LEGACY = "en1oxy7wnw8j9n"          # 旧客户端 / 旧 token 用
+CLIENT_ID_IDE = os.getenv("TRAE_CLIENT_ID", "").strip() or "ono9krqynydwx5"   # 桌面端实测值
+IDE_VERSION = "1.107.1"
+TOKEN_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)) or ".", ".trae_token_cache.json")
+
+# ── 纯标准库 ECDSA P-256（新版 ExchangeToken 缺设备签名会报 20405）──
+P256_P = 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+P256_A = P256_P - 3
+P256_N = 0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551
+P256_GX = 0x6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296
+P256_GY = 0x4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5
+
+def _der_tlv(buf, i):
+    tag = buf[i]; i += 1
+    ln = buf[i]; i += 1
+    if ln & 0x80:
+        n = ln & 0x7f
+        ln = int.from_bytes(buf[i:i + n], "big"); i += n
+    return tag, buf[i:i + ln], i + ln
+
+def _pem_der(pem):
+    body = "".join(l.strip() for l in pem.splitlines() if "---" not in l)
+    return base64.b64decode(body)
+
+def ec_private_scalar(pem):
+    """从 PKCS#8 / SEC1 PEM 里取出 P-256 私钥标量。"""
+    der = _pem_der(pem)
+    try:  # PKCS#8
+        _, body, _ = _der_tlv(der, 0)
+        i = 0
+        _, _, i = _der_tlv(body, i)
+        _, octs, i = _der_tlv(body, i)
+        _, inner, _ = _der_tlv(octs, 0)
+        j = 0
+        _, _, j = _der_tlv(inner, j)
+        _, d, j = _der_tlv(inner, j)
+        return int.from_bytes(d, "big")
+    except Exception:  # SEC1
+        _, body, _ = _der_tlv(der, 0)
+        i = 0
+        _, _, i = _der_tlv(body, i)
+        _, d, i = _der_tlv(body, i)
+        return int.from_bytes(d, "big")
+
+def _ec_add(p1, p2):
+    if p1 is None:
+        return p2
+    if p2 is None:
+        return p1
+    x1, y1 = p1
+    x2, y2 = p2
+    if x1 == x2 and (y1 + y2) % P256_P == 0:
+        return None
+    if p1 == p2:
+        lam = (3 * x1 * x1 + P256_A) * pow(2 * y1, -1, P256_P) % P256_P
+    else:
+        lam = (y2 - y1) * pow(x2 - x1, -1, P256_P) % P256_P
+    x3 = (lam * lam - x1 - x2) % P256_P
+    return x3, (lam * (x1 - x3) - y1) % P256_P
+
+def _ec_mul(k, pt):
+    r = None
+    while k:
+        if k & 1:
+            r = _ec_add(r, pt)
+        pt = _ec_add(pt, pt)
+        k >>= 1
+    return r
+
+def _der_sig(r, s):
+    def enc(x):
+        b = x.to_bytes(32, "big").lstrip(b"\x00") or b"\x00"
+        if b[0] & 0x80:
+            b = b"\x00" + b
+        return b"\x02" + bytes([len(b)]) + b
+    body = enc(r) + enc(s)
+    return b"\x30" + bytes([len(body)]) + body
+
+def ec_sign(pem, data):
+    """ECDSA P-256 / SHA-256 签名，返回 base64(DER)。低 s 归一化，与客户端一致。"""
+    d = ec_private_scalar(pem)
+    z = int.from_bytes(hashlib.sha256(data).digest(), "big")
+    while True:
+        k = int.from_bytes(os.urandom(32), "big") % (P256_N - 1) + 1
+        x1, _ = _ec_mul(k, (P256_GX, P256_GY))
+        r = x1 % P256_N
+        if r == 0:
+            continue
+        s = (pow(k, -1, P256_N) * (z + r * d)) % P256_N
+        if s == 0:
+            continue
+        if s > P256_N // 2:
+            s = P256_N - s
+        return base64.b64encode(_der_sig(r, s)).decode("ascii")
+
+def norm_pem(v):
+    """把环境变量里字面量的 \n 还原成真换行（复制粘贴友好）。"""
+    v = (v or "").strip()
+    if "\\n" in v and "\n" not in v:
+        v = v.replace("\\n", "\n")
+    return v
+
+def device_keys():
+    """从环境变量取设备证明材料（新版 ExchangeToken 必需，需从 Trae 桌面客户端导出）。
+    为避免与你现有 TRAE_DEVICE_ID（签到风控设备号，16 位数字）混淆，
+    这组变量统一用 TRAE_CLIENT_ 前缀。取不到返回 None（走旧版接口兜底）。"""
+    priv = norm_pem(os.environ.get("TRAE_CLIENT_DEVICE_KEY_PEM", ""))
+    pub = norm_pem(os.environ.get("TRAE_CLIENT_DEVICE_PUB_PEM", ""))
+    did = os.environ.get("TRAE_CLIENT_DEVICE_ID", "").strip()
+    if priv and pub and did:
+        return {"deviceId": did, "privateKeyPem": priv, "publicKeyPem": pub,
+                "machineId": os.environ.get("TRAE_CLIENT_MACHINE_ID", "").strip()}
+    return None
+
+def device_proof(path, refresh_token, keys, client_id=None, platform_code="IDE_PC"):
+    """构造 (DeviceProof, DeviceInfo)，供新版 ExchangeToken 使用。"""
+    ts = int(time.time())
+    nonce = os.urandom(16).hex()
+    canonical = "\n".join(["POST", path, client_id or CLIENT_ID_IDE, refresh_token, str(ts), nonce])
+    proof = {"Timestamp": ts, "Nonce": nonce,
+             "Signature": ec_sign(keys["privateKeyPem"], canonical.encode("utf-8"))}
+    info = {"DeviceID": keys.get("deviceId") or "", "MachineID": keys.get("machineId") or "",
+            "PlatformCode": platform_code, "DeviceType": "PC",
+            "DeviceName": platform.node() or "PC", "DeviceModel": "",
+            "ClientVersion": IDE_VERSION, "DevicePublicKey": keys["publicKeyPem"],
+            "DeviceBrand": "", "DeviceCPU": "",
+            "OSInfo": platform.system() or "Windows", "OSVersion": platform.release() or ""}
+    return proof, info
+
+def refresh_tokens(refresh_token, keys=None):
+    """用 refreshToken 换新 accessToken；Trae 会同时轮换 refreshToken。
+    返回 (new_access, new_refresh, msg)。优先走带设备证明的新端点，
+    没有设备材料时退回旧端点（102/204 错误码会给出明确提示）。"""
+    if keys and keys.get("privateKeyPem") and keys.get("publicKeyPem"):
+        path = "/trae/api/v3/oauth/ExchangeToken"
+        last = None
+        # (ClientID, PlatformCode) 组合链：桌面端实测钥匙 → 旧 ClientID → SOLO 线
+        combos = [(CLIENT_ID_IDE, "IDE_PC"), (CLIENT_ID_LEGACY, "IDE_PC"), (CLIENT_ID_LEGACY, "SOLO_PC")]
+        for cid, pcode in combos:
+            try:
+                proof, info = device_proof(path, refresh_token, keys, cid, pcode)
+            except Exception as e:
+                return None, None, "设备签名失败（检查设备私钥）: %s" % e
+            body = json.dumps({"ClientID": cid, "ClientSecret": "", "RefreshToken": refresh_token,
+                               "DeviceInfo": info, "DeviceProof": proof, "IDEVersion": IDE_VERSION})
+            status, text = _post(EP_EXCHANGE_PROOF, {"Content-Type": "application/json",
+                                                     "x-cloudide-token": ""}, body)
+            if status < 400:
+                break
+            last = (status, text)
+            # 10101 不匹配 / 20403 设备不匹配 → 换下一组「钥匙×产品线」再试
+            if "10101" not in text and "20403" not in text:
+                break
+        else:
+            status, text = last or (status, text)
+    else:
+        body = json.dumps({"ClientID": CLIENT_ID_LEGACY, "RefreshToken": refresh_token,
+                           "ClientSecret": "-", "UserID": ""})
+        status, text = _post(EP_EXCHANGE, {"Content-Type": "application/json",
+                                           "Accept": "application/json"}, body)
+    if status >= 400 or status < 0:
+        return None, None, "refresh http=%s %s" % (status, text[:200])
+    try:
+        res = json.loads(text)["Result"]
+        return res.get("Token"), res.get("RefreshToken"), "ok"
+    except Exception as e:
+        return None, None, "解析续期响应失败: %s %s" % (e, text[:200])
+
+def load_token_cache():
+    try:
+        with open(TOKEN_CACHE_FILE, "r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except Exception:
+        return {}
+
+def save_token_cache(cache):
+    try:
+        with open(TOKEN_CACHE_FILE, "w", encoding="utf-8") as fh:
+            json.dump(cache, fh, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print("[缓存] 写入失败: %s" % e)
+
+def renew_access_token(index, refresh_token, name):
+    """链式续期：refreshToken → 新 accessToken（+轮换新 refreshToken），并立即回写缓存。
+    缓存即命脉：轮换链断不得。Actions 下由 workflow 的加密 state 缓存跨运行持久化。"""
+    keys = device_keys()
+    if keys:
+        print("[%s] 链式续期：携带设备证明（新版接口）" % name)
+    else:
+        print("[%s] 链式续期：未配置设备证明材料，走旧版接口兜底" % name)
+    new_at, new_rt, msg = refresh_tokens(refresh_token, keys)
+    if not new_at:
+        raise RuntimeError("refreshToken 续期失败: %s" % msg)
+    cache = load_token_cache()
+    rec = cache.get(str(index)) or {}
+    if new_rt:
+        rec["refreshToken"] = new_rt
+    rec["updatedAt"] = beijing_now_str()
+    cache[str(index)] = rec
+    save_token_cache(cache)
+    return new_at
+
+def bootstrap_refresh_token(index, result, name):
+    """Session 模式引导：GetUserToken 响应里若带 RefreshToken，写入缓存，
+    下次运行即可切到链式续期（此后不再依赖 14 天会话 Cookie）。"""
+    boot_rt = (result.get("RefreshToken") or result.get("refreshToken") or "").strip()
+    if not boot_rt:
+        return False
+    cache = load_token_cache()
+    rec = cache.get(str(index)) or {}
+    if rec.get("refreshToken") == boot_rt:
+        return False
+    rec["refreshToken"] = boot_rt
+    rec["updatedAt"] = beijing_now_str()
+    rec["source"] = "GetUserToken bootstrap"
+    cache[str(index)] = rec
+    save_token_cache(cache)
+    print("[%s] ✨ 检测到 RefreshToken，已写入缓存——下次运行起进入链式续期模式" % name)
+    return True
+
+def iter_accounts():
+    """产出 (序号, session, device_id, refresh_token)。
+    Session: TRAE_SESSION / TRAE_SESSION_N；refreshToken: TRAE_REFRESH_TOKEN / TRAE_REFRESH_TOKEN_N。
+    两类可只配其一；同序号两者都配时优先走链式续期、失败回退 Session。"""
+    def _env(name):
+        return os.environ.get(name, "").strip()
+    s1, rt1 = _env("TRAE_SESSION"), _env("TRAE_REFRESH_TOKEN")
+    if s1 or rt1:
+        yield 1, s1, _env("TRAE_DEVICE_ID"), rt1
     n = 2
     while True:
-        s = os.environ.get("TRAE_SESSION_%d" % n, "").strip()
-        if not s:
+        s = _env("TRAE_SESSION_%d" % n)
+        rt = _env("TRAE_REFRESH_TOKEN_%d" % n)
+        if not s and not rt:
             break
-        yield n, s, os.environ.get("TRAE_DEVICE_ID_%d" % n, "").strip()
+        yield n, s, _env("TRAE_DEVICE_ID_%d" % n), rt
         n += 1
 
 
@@ -253,9 +503,9 @@ def random_device_id():
 
 
 def main():
-    accounts = list(iter_sessions())
+    accounts = list(iter_accounts())
     if not accounts:
-        print("错误：缺少环境变量 TRAE_SESSION")
+        print("错误：缺少环境变量 TRAE_SESSION 或 TRAE_REFRESH_TOKEN")
         sys.exit(1)
     webhook = os.environ.get("FEISHU_WEBHOOK", "").strip()
     # 到期检查每次运行都执行（打印剩余天数日志），提醒行仅在真正推送时附带
@@ -264,15 +514,29 @@ def main():
     rerun_flags = []    # 标记各成功账号是否为「今日已签到」的重跑（重跑不推送，防重复）
     lines = []          # 每账号一行的明细（签到结果 + 所得 + 余额），用于推送
     all_ok = True
-    for index, session, device_id in accounts:
+    for index, session, device_id, refresh_token in accounts:
         # 多账号之间错开 3~6 秒随机间隔，降低请求密度，规避 9074「参与用户太多」风控
         if index > 1:
             time.sleep(random.uniform(3, 6))
         name = "账号 %d" % index
         device_id = device_id or random_device_id()
         try:
-            token = get_token(session)
-            print("[%s] 已换取新 JWT，长度=%d" % (name, len(token)))
+            # 取 token：优先链式续期（refreshToken 轮换链），失败回退 Session Cookie
+            token = None
+            if refresh_token or load_token_cache().get(str(index), {}).get("refreshToken"):
+                rt = refresh_token or load_token_cache().get(str(index), {}).get("refreshToken")
+                try:
+                    token = renew_access_token(index, rt, name)
+                    print("[%s] 链式续期成功，JWT 长度=%d（refreshToken 已轮换回写缓存）" % (name, len(token)))
+                except Exception as e:
+                    if session:
+                        print("[%s] 链式续期失败（%s），回退 Session Cookie 模式" % (name, e))
+                    else:
+                        raise
+            if token is None:
+                token, token_result = get_token_full(session)
+                print("[%s] 已换取新 JWT，长度=%d" % (name, len(token)))
+                bootstrap_refresh_token(index, token_result, name)
 
             # 拉取账号资料（昵称/脱敏手机号），失败降级为「账号 N」
             profile = get_user_info(token, session)
