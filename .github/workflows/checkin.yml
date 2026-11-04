@@ -61,8 +61,9 @@ jobs:
           TRAE_DEVICE_ID_3: ${{ secrets.TRAE_DEVICE_ID_3 }}
           TRAE_SESSION_4: ${{ secrets.TRAE_SESSION_4 }}
           TRAE_DEVICE_ID_4: ${{ secrets.TRAE_DEVICE_ID_4 }}
-          TRAE_SESSION_EXPIRE: ${{ secrets.TRAE_SESSION_EXPIRE }}
           FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
+          # 积分余额告警阈值（低于此值在飞书推送告警行；默认 500）
+          TRAE_CREDIT_ALERT: ${{ secrets.TRAE_CREDIT_ALERT }}
           # ── 链式续期（借鉴 L0NE-6/Trae-AutoCheckin，MIT）──
           TRAE_REFRESH_TOKEN: ${{ secrets.TRAE_REFRESH_TOKEN }}
           TRAE_REFRESH_TOKEN_2: ${{ secrets.TRAE_REFRESH_TOKEN_2 }}
