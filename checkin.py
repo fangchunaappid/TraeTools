@@ -226,24 +226,23 @@ def beijing_today():
     return (datetime.datetime.utcnow() + datetime.timedelta(hours=8)).date()
 
 
-def expire_warnings():
-    """会话到期提醒：读环境变量 TRAE_SESSION_EXPIRE（可选，YYYY-MM-DD，北京时间）。
-    剩 1 天（明天到期）或当天到期时返回提醒行；未配置或还早则返回空列表。"""
-    exp = os.environ.get("TRAE_SESSION_EXPIRE", "").strip()
-    if not exp:
-        return []
+def credit_alert_threshold():
+    """积分告警阈值：环境变量 TRAE_CREDIT_ALERT（默认 500）。解析失败回退默认值。"""
+    raw = os.environ.get("TRAE_CREDIT_ALERT", "").strip()
     try:
-        ed = datetime.datetime.strptime(exp, "%Y-%m-%d").date()
+        return float(raw) if raw else 500.0
     except ValueError:
-        print("[会话] TRAE_SESSION_EXPIRE 格式应为 YYYY-MM-DD，当前值无效: %r" % exp)
-        return []
-    left = (ed - beijing_today()).days
-    print("[会话] 到期日=%s，剩余=%d 天" % (exp, left))
-    if left == 1:
-        return ["⚠️ TRAE 会话明天（%s）到期，请在 TraeTools 重新登录并重新部署（选择「保留现有 fork」），否则签到将失效" % exp]
-    if left <= 0:
-        return ["⚠️ TRAE 会话今天（%s）已到期，请立即在 TraeTools 重新登录并重新部署（选择「保留现有 fork」）" % exp]
-    return []
+        print("[告警] TRAE_CREDIT_ALERT 格式应为数字，当前值无效: %r，回退 500" % raw)
+        return 500.0
+
+def credit_low_line(name, balance):
+    """余额低于阈值时返回一条告警行，否则返回 None。balance=-1（查询失败）不告警。"""
+    if balance is None or balance < 0:
+        return None
+    th = credit_alert_threshold()
+    if balance < th:
+        return "⚠️ %s：积分余额仅剩 %s（低于告警阈值 %s），请注意补充" % (name, _fmt_num(balance), _fmt_num(th))
+    return None
 
 
 # ══════════════════ Token 链式续期 ══════════════════
@@ -524,8 +523,6 @@ def main():
         print("错误：缺少环境变量 TRAE_SESSION 或 TRAE_REFRESH_TOKEN")
         sys.exit(1)
     webhook = os.environ.get("FEISHU_WEBHOOK", "").strip()
-    # 到期检查每次运行都执行（打印剩余天数日志），提醒行仅在真正推送时附带
-    expiry_lines = expire_warnings()
     ok_names, fail_names = [], []
     rerun_flags = []    # 标记各成功账号是否为「今日已签到」的重跑（重跑不推送，防重复）
     lines = []          # 每账号一行的明细（签到结果 + 所得 + 余额），用于推送
@@ -579,6 +576,9 @@ def main():
                 ok_names.append(name)
                 rerun_flags.append(True)
                 lines.append("✅ %s：今日已签到，获得 0 积分，余额 %s" % (name, _fmt_num(balance)))
+                low = credit_low_line(name, balance)
+                if low:
+                    lines.append(low)
                 continue
 
             result = checkin(token, device_id)
@@ -625,6 +625,9 @@ def main():
             print("[%s] 签到成功，本次获得：%s 积分，剩余：%s" % (name, _fmt_num(gained), _fmt_num(balance)))
             ok_names.append(name)
             lines.append("✅ %s：签到成功，获得 %s 积分，余额 %s" % (name, _fmt_num(gained), _fmt_num(balance)))
+            low = credit_low_line(name, balance)
+            if low:
+                lines.append(low)
         except Exception as e:
             print("[%s] 签到异常: %s" % (name, e))
             fail_names.append(name)
@@ -639,7 +642,6 @@ def main():
     elif webhook and (ok_names or fail_names):
         summary = ["Trae 多账号签到结果", "时间：%s" % beijing_now_str()]
         summary.extend(lines)
-        summary.extend(expiry_lines)
         notify_feishu(webhook, "\n".join(summary))
     if not all_ok:
         sys.exit(1)
