@@ -260,7 +260,7 @@ EP_EXCHANGE = OAUTH_HOST + "/cloudide/api/v3/trae/oauth/ExchangeToken"        # 
 EP_EXCHANGE_PROOF = "https://api.trae.cn/trae/api/v3/oauth/ExchangeToken"     # 新版：需设备证明
 CLIENT_ID_LEGACY = "en1oxy7wnw8j9n"          # 旧客户端 / 旧 token 用
 CLIENT_ID_IDE = os.getenv("TRAE_CLIENT_ID", "").strip() or "ono9krqynydwx5"   # 桌面端实测值
-IDE_VERSION = "1.107.1"
+IDE_VERSION = "3.4.9"
 TOKEN_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)) or ".", ".trae_token_cache.json")
 
 # ── 纯标准库 ECDSA P-256（新版 ExchangeToken 缺设备签名会报 20405）──
@@ -288,7 +288,8 @@ def ec_private_scalar(pem):
     try:  # PKCS#8
         _, body, _ = _der_tlv(der, 0)
         i = 0
-        _, _, i = _der_tlv(body, i)
+        _, _, i = _der_tlv(body, i)   # INTEGER version
+        _, _, i = _der_tlv(body, i)   # SEQUENCE AlgorithmIdentifier（跳过！）
         _, octs, i = _der_tlv(body, i)
         _, inner, _ = _der_tlv(octs, 0)
         j = 0
@@ -363,22 +364,37 @@ def norm_pem(v):
 def device_keys():
     """从环境变量取设备证明材料（新版 ExchangeToken 必需，需从 Trae 桌面客户端导出）。
     为避免与你现有 TRAE_DEVICE_ID（签到风控设备号，16 位数字）混淆，
-    这组变量统一用 TRAE_CLIENT_ 前缀。取不到返回 None（走旧版接口兜底）。"""
+    这组变量统一用 TRAE_CLIENT_ 前缀。取不到返回 None（走旧版接口兜底）。
+    另支持 TRAE_CLIENT_DEVICE_INFO：客户端签发 token 时上送的完整 DeviceInfo
+    JSON（服务端可能将 token 绑定到完整设备指纹，建议与设备密钥同源导出）。"""
     priv = norm_pem(os.environ.get("TRAE_CLIENT_DEVICE_KEY_PEM", ""))
     pub = norm_pem(os.environ.get("TRAE_CLIENT_DEVICE_PUB_PEM", ""))
     did = os.environ.get("TRAE_CLIENT_DEVICE_ID", "").strip()
     if priv and pub and did:
+        info = None
+        raw = os.environ.get("TRAE_CLIENT_DEVICE_INFO", "").strip()
+        if raw:
+            try:
+                info = json.loads(raw)
+            except json.JSONDecodeError:
+                print("[续期] TRAE_CLIENT_DEVICE_INFO 不是合法 JSON，忽略")
         return {"deviceId": did, "privateKeyPem": priv, "publicKeyPem": pub,
-                "machineId": os.environ.get("TRAE_CLIENT_MACHINE_ID", "").strip()}
+                "machineId": os.environ.get("TRAE_CLIENT_MACHINE_ID", "").strip(),
+                "deviceInfo": info}
     return None
 
 def device_proof(path, refresh_token, keys, client_id=None, platform_code="IDE_PC"):
-    """构造 (DeviceProof, DeviceInfo)，供新版 ExchangeToken 使用。"""
+    """构造 (DeviceProof, DeviceInfo)，供新版 ExchangeToken 使用。
+    有 TRAE_CLIENT_DEVICE_INFO 时逐字段复刻客户端原版上送内容。"""
     ts = int(time.time())
     nonce = os.urandom(16).hex()
     canonical = "\n".join(["POST", path, client_id or CLIENT_ID_IDE, refresh_token, str(ts), nonce])
     proof = {"Timestamp": ts, "Nonce": nonce,
              "Signature": ec_sign(keys["privateKeyPem"], canonical.encode("utf-8"))}
+    if keys.get("deviceInfo"):
+        info = dict(keys["deviceInfo"])
+        info["DevicePublicKey"] = keys["publicKeyPem"]   # 确保与签名私钥同源
+        return proof, info
     info = {"DeviceID": keys.get("deviceId") or "", "MachineID": keys.get("machineId") or "",
             "PlatformCode": platform_code, "DeviceType": "PC",
             "DeviceName": platform.node() or "PC", "DeviceModel": "",
