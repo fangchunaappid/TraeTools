@@ -4,6 +4,67 @@
 
 TraeTools 是对 **TRAE-Checkin** 的重构版，并集成了 **Trea-Switch** 的账号切换能力，用 Avalonia 重写为现代化桌面应用（.NET 9）。一个工具覆盖 Trae 账号的「登录 → 签到 → 切换 → 用量查看 → 云端托管」全流程。
 
+---
+
+## 🚀 Fork 增强说明（2026-11-04）
+
+本 fork 在上游基础上对 **云端签到体系** 做了一轮大升级，核心变化：**凭证永不手动续命**。
+
+### 1. Token 链式续期（借鉴 [L0NE-6/Trae-AutoCheckin](https://github.com/L0NE-6/Trae-AutoCheckin)，MIT）
+
+上游模式：`X-Cloudide-Session` Cookie 换 JWT，**~14 天必死**，每次都要重新登录 + 重新部署。
+本 fork 模式：
+
+```
+refreshToken ──ExchangeToken──> 新 accessToken + 轮换出新 refreshToken
+                                      │
+                                      └─> 立即回写加密缓存（轮换链断不得）
+                                           → 凭证长期自循环，永不手动续命
+```
+
+- 新版 ExchangeToken 要求 **ECDSA P-256 设备签名**（纯标准库实现，零依赖）
+- 链式续期失败时**自动回退** Session Cookie 模式，签到永不中断
+- 多账号各自独立成链，互不干扰（与本机 Trae 客户端的登录态也互不影响）
+
+### 2. 加密 state 缓存
+
+refreshToken 是命脉，Actions 下通过 `actions/cache` + `openssl AES-256-CBC`（密钥 `TRAE_CACHE_KEY`）跨运行持久化，公开仓库不裸奔。
+
+### 3. 触发链路：准点 + 兜底
+
+```
+北京 00:05:14  外部 cron-job（trae-checkin-dispatch）→ workflow_dispatch   ← 主力，准点
+GitHub schedule（cron 16:05，实际常延迟 5~7 小时）                        ← 兜底
+        ↓ 串行锁排队；后来者检测「今日已签到」直接跳过，不重复推送
+```
+
+### 4. 飞书推送增强
+
+- 显示账号昵称：`✅ 账号 1·trae188（188******18）：签到成功，获得 100 积分，余额 5288`
+- **积分余额告警**：低于 `TRAE_CREDIT_ALERT`（默认 500）时追加 `⚠️` 告警行
+- 已退役 `TRAE_SESSION_EXPIRE`（链式续期下不再需要手动记到期日）
+
+### 5. Secrets 清单
+
+| Secret | 说明 |
+|---|---|
+| `TRAE_REFRESH_TOKEN` / `_2` | 各账号 refreshToken（链式续期主凭证） |
+| `TRAE_CLIENT_DEVICE_KEY_PEM` / `_PUB_PEM` / `_DEVICE_ID` / `_MACHINE_ID` | 设备证明材料（全部账号共用，导出一次即可） |
+| `TRAE_CLIENT_DEVICE_INFO` | 客户端签发 token 时的完整 DeviceInfo JSON（设备指纹，建议同源导出） |
+| `TRAE_CACHE_KEY` | 加密缓存的密钥（自选随机长字符串） |
+| `TRAE_SESSION` / `_2` | Session Cookie（回退兜底用，可留可删） |
+| `TRAE_DEVICE_ID` / `_2` | 签到风控设备号（16 位数字，与上面设备证明是两回事） |
+| `FEISHU_WEBHOOK` | 飞书机器人 |
+| `TRAE_CREDIT_ALERT` | 积分告警阈值（选填，默认 500） |
+
+初始 refreshToken / 设备密钥的导出步骤见 **[tools/README.md](tools/README.md)**。
+
+### 6. 更新日志（2026-11-04）
+
+- `checkin.py`：移植链式续期（轮换链 + ECDSA 设备证明 + 缓存回写 + Session 自动引导/回退）；修复私钥标量 DER 解析（补跳 AlgorithmIdentifier）；推送带账号昵称；新增积分告警；移除到期提醒
+- `checkin.yml`：触发时间 08:00 → 00:05；加密 state 缓存四步（恢复/解密/加密/保存）；新 secrets 透传
+- `tools/`：引入 trae_get_token.py、trae_sms_login.py（来源 L0NE-6/Trae-AutoCheckin，MIT）+ 使用文档
+
 ### 气死我了，怎么老是给我爆9074
 
 ## 功能特性
@@ -79,7 +140,7 @@ dotnet build -c Release
 | 签到 0 积分 | 当日已签过（重复签到不加分），或非会员当日基础 150 分已到账 |
 | Token 失效 | 程序会用 `X-Cloudide-Session` 静默换新；彻底失效时提示重新登录 |
 
-> 云端签到凭证 `TRAE_SESSION` 有效期约 14 天，过期后请在软件内重新登录并重新部署。
+> 上游模式凭 `TRAE_SESSION`（~14 天有效）需定期重新部署；**本 fork 已升级为 refreshToken 链式续期（见顶部说明），长期免维护**。
 
 ## 开发者
 
@@ -97,6 +158,7 @@ dotnet build -c Release
 
 - [TRAE-Checkin](https://github.com/star620/TRAE-Checkin)：本项目的前身，云端签到体系（checkin.py + GitHub Actions 流程）源自该仓库
 - [Trea-Switch](https://github.com/star620/Trea-Switch)：账号切换（vault 建档 / 冷切换 / 守护回滚）能力源自该仓库
+- [L0NE-6/Trae-AutoCheckin](https://github.com/L0NE-6/Trae-AutoCheckin)：Token 链式续期机制、设备证明 ECDSA 实现与引导工具（trae_get_token / trae_sms_login）参考自该仓库（MIT）
 
 ## 许可证
 
