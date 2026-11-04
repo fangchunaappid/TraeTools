@@ -14,6 +14,10 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  # 加密 token 缓存的密钥（链式续期模式下用于跨运行持久化轮换后的 refreshToken）
+  TRAE_CACHE_KEY: ${{ secrets.TRAE_CACHE_KEY }}
+
 jobs:
   checkin:
     runs-on: ubuntu-latest
@@ -25,6 +29,27 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      # ── 链式续期的加密 state 缓存：恢复 → 解密 → 签到 → 加密 → 保存 ──
+      - name: Restore encrypted token cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .trae-cache/state.enc
+          key: trae-state-v1-${{ github.run_id }}
+          restore-keys: |
+            trae-state-v1-
+
+      - name: Decrypt token cache
+        if: ${{ hashFiles('.trae-cache/state.enc') != '' }}
+        run: |
+          if [ -z "$TRAE_CACHE_KEY" ]; then
+            echo "::error::存在加密缓存但缺少 TRAE_CACHE_KEY，无法解密——请在仓库 Secrets 添加"
+            exit 1
+          fi
+          openssl enc -d -aes-256-cbc -pbkdf2 -salt -pass env:TRAE_CACHE_KEY \
+            -in .trae-cache/state.enc -out "$RUNNER_TEMP/state.tar"
+          tar -xf "$RUNNER_TEMP/state.tar" -C .
+          rm -f "$RUNNER_TEMP/state.tar"
 
       - name: Run checkin
         env:
@@ -38,4 +63,29 @@ jobs:
           TRAE_DEVICE_ID_4: ${{ secrets.TRAE_DEVICE_ID_4 }}
           TRAE_SESSION_EXPIRE: ${{ secrets.TRAE_SESSION_EXPIRE }}
           FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
+          # ── 链式续期（借鉴 L0NE-6/Trae-AutoCheckin，MIT）──
+          TRAE_REFRESH_TOKEN: ${{ secrets.TRAE_REFRESH_TOKEN }}
+          TRAE_REFRESH_TOKEN_2: ${{ secrets.TRAE_REFRESH_TOKEN_2 }}
+          TRAE_CLIENT_DEVICE_KEY_PEM: ${{ secrets.TRAE_CLIENT_DEVICE_KEY_PEM }}
+          TRAE_CLIENT_DEVICE_PUB_PEM: ${{ secrets.TRAE_CLIENT_DEVICE_PUB_PEM }}
+          TRAE_CLIENT_DEVICE_ID: ${{ secrets.TRAE_CLIENT_DEVICE_ID }}
+          TRAE_CLIENT_MACHINE_ID: ${{ secrets.TRAE_CLIENT_MACHINE_ID }}
         run: python checkin.py
+
+      - name: Encrypt token cache
+        if: ${{ always() && env.TRAE_CACHE_KEY != '' }}
+        run: |
+          if [ -f .trae_token_cache.json ]; then
+            mkdir -p .trae-cache
+            tar -cf "$RUNNER_TEMP/state.tar" .trae_token_cache.json
+            openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:TRAE_CACHE_KEY \
+              -in "$RUNNER_TEMP/state.tar" -out .trae-cache/state.enc
+            rm -f "$RUNNER_TEMP/state.tar"
+          fi
+
+      - name: Save encrypted token cache
+        if: ${{ always() && env.TRAE_CACHE_KEY != '' && hashFiles('.trae-cache/state.enc') != '' }}
+        uses: actions/cache/save@v4
+        with:
+          path: .trae-cache/state.enc
+          key: trae-state-v1-${{ github.run_id }}
