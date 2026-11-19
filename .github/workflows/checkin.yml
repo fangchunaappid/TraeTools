@@ -12,7 +12,8 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  # 写权限仅用于文末 keepalive：公共仓库 60 天无提交会被 GitHub 自动停用定时任务
+  contents: write
 
 env:
   # 加密 token 缓存的密钥（链式续期模式下用于跨运行持久化轮换后的 refreshToken）
@@ -50,6 +51,15 @@ jobs:
             -in .trae-cache/state.enc -out "$RUNNER_TEMP/state.tar"
           tar -xf "$RUNNER_TEMP/state.tar" -C .
           rm -f "$RUNNER_TEMP/state.tar"
+
+      # 缓存是链式续期的命脉：丢了就只能回退到 Secrets 里的种子（可能已被轮换失效）
+      - name: 凭证缓存自检
+        run: |
+          if [ -f .trae-cache/state.enc ]; then
+            echo "✅ 凭证缓存已恢复"
+          else
+            echo "::warning::未找到凭证缓存（首次运行 / 被清理 / 超 7 天未跑），本次将回退到 Secrets 里的种子凭证"
+          fi
 
       - name: Run checkin
         env:
@@ -91,3 +101,21 @@ jobs:
         with:
           path: .trae-cache/state.enc
           key: trae-state-v1-${{ github.run_id }}
+
+      # GitHub 会停用「60 天无提交」公共仓库的定时任务；距上次提交 ≥50 天就补一个空提交续命
+      - name: Keepalive（防 60 天无提交被停用）
+        if: ${{ always() }}
+        run: |
+          days=$(( ( $(date +%s) - $(git log -1 --format=%ct) ) / 86400 ))
+          echo "上次提交距今 ${days} 天"
+          if [ "$days" -ge 50 ]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            date -u +%Y-%m-%dT%H:%M:%SZ > .keepalive
+            git add .keepalive
+            git commit -m "chore: keepalive（防定时任务因 60 天无提交被停用）"
+            git push
+            echo "✅ 已补空提交，60 天计时器重置"
+          else
+            echo "⏳ 距 60 天阈值还剩 $(( 60 - days )) 天，无需处理"
+          fi
