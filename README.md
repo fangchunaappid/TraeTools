@@ -138,6 +138,7 @@ dotnet build -c Release
 | 云端部署 HTTP 401 | GitHub 授权失效或权限不足：点「重新授权」；仍失败则自动删除旧 fork 重建 |
 | 云端提示「未找到 workflow」 | 旧 fork 早于本仓库添加 checkin.yml：按提示一键「删除并重建 fork」即可自愈 |
 | 签到 0 积分 | 当日已签过（重复签到不加分），或非会员当日基础 150 分已到账 |
+| 签到失败：`code=1001` / `not able to authenticate you` | **设备指纹过期**：Trae 客户端升级后会重建设备身份，仓库里旧的 `TRAE_CLIENT_DEVICE_*` 签出来的 JWT 会被判未认证。重跑 `python trae_get_token.py --export-keys` 更新设备材料与 refreshToken，并**删除 `TRAE_CLIENT_DEVICE_INFO`**（旧指纹会覆盖新密钥，表现为 `10101 refresh token is not matched to the client`） |
 | Token 失效 | 程序会用 `X-Cloudide-Session` 静默换新；彻底失效时提示重新登录 |
 
 > 上游模式凭 `TRAE_SESSION`（~14 天有效）需定期重新部署；**本 fork 已升级为 refreshToken 链式续期（见顶部说明），长期免维护**。
