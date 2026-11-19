@@ -735,13 +735,19 @@ def main():
     # 汇总一条飞书推送（webhook 为空则跳过）。
     # 防重复：若本次运行所有成功账号都是「今日已签到」的重跑且无失败，则不推送
     # （首个触发源已推送过；本运行仅作为 schedule 兜底/串行队列中的重复触发）。
-    rerun_only = all_ok and ok_names and len(rerun_flags) == len(ok_names)
+    # TRAE_FORCE_PUSH=1 可强制推送，用于手动自测消息样式。
+    force_push = os.environ.get("TRAE_FORCE_PUSH", "").strip().lower() in ("1", "true", "yes")
+    rerun_only = all_ok and ok_names and len(rerun_flags) == len(ok_names) and not force_push
     if rerun_only:
         print("所有账号今日均已签到，跳过推送（避免重复）")
     elif webhook and (ok_names or fail_names):
         summary = ["Trae 多账号签到结果", "时间：%s" % beijing_now_str()]
         summary.extend(lines)
-        notify_feishu(webhook, "\n".join(summary))
+        text = "\n".join(summary)
+        print("---- feishu message ----")
+        print(text)
+        print("------------------------")
+        print("[推送] HTTP %s" % notify_feishu(webhook, text))
     if not all_ok:
         sys.exit(1)
     print("全部账号签到完成")
