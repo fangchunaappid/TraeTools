@@ -287,6 +287,7 @@ IDE_VERSION = os.getenv("TRAE_IDE_VERSION", "").strip() or "3.4.20"
 DEFAULT_ACCOUNT_LABELS = {
     "727246465936345": "188******18",
     "2504057258521561": "190******81",
+    "3942216150041668": "超越（UID…041668）",
 }
 TOKEN_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)) or ".", ".trae_token_cache.json")
 
