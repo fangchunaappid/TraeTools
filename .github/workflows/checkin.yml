@@ -77,6 +77,7 @@ jobs:
           # ── 链式续期（借鉴 L0NE-6/Trae-AutoCheckin，MIT）──
           TRAE_REFRESH_TOKEN: ${{ secrets.TRAE_REFRESH_TOKEN }}
           TRAE_REFRESH_TOKEN_2: ${{ secrets.TRAE_REFRESH_TOKEN_2 }}
+          TRAE_REFRESH_TOKEN_3: ${{ secrets.TRAE_REFRESH_TOKEN_3 }}
           TRAE_CLIENT_DEVICE_KEY_PEM: ${{ secrets.TRAE_CLIENT_DEVICE_KEY_PEM }}
           TRAE_CLIENT_DEVICE_PUB_PEM: ${{ secrets.TRAE_CLIENT_DEVICE_PUB_PEM }}
           TRAE_CLIENT_DEVICE_ID: ${{ secrets.TRAE_CLIENT_DEVICE_ID }}
