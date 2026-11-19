@@ -259,7 +259,7 @@ EP_EXCHANGE = OAUTH_HOST + "/cloudide/api/v3/trae/oauth/ExchangeToken"        # 
 EP_EXCHANGE_PROOF = "https://api.trae.cn/trae/api/v3/oauth/ExchangeToken"     # 新版：需设备证明
 CLIENT_ID_LEGACY = "en1oxy7wnw8j9n"          # 旧客户端 / 旧 token 用
 CLIENT_ID_IDE = os.getenv("TRAE_CLIENT_ID", "").strip() or "ono9krqynydwx5"   # 桌面端实测值
-IDE_VERSION = "3.4.9"
+IDE_VERSION = os.getenv("TRAE_IDE_VERSION", "").strip() or "3.4.20"
 TOKEN_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)) or ".", ".trae_token_cache.json")
 
 # ── 纯标准库 ECDSA P-256（新版 ExchangeToken 缺设备签名会报 20405）──
@@ -517,6 +517,76 @@ def random_device_id():
     return str(random.randint(10**15, 10**16 - 1))
 
 
+AUTH_ERROR_HINT = (
+    "凭证被服务端判定为未认证（HTTP 401 / code 1001）：该 token 所属会话已失效，"
+    "或与其它端的登录态冲突。请重新登录 Trae 导出新的 refreshToken 更新 TRAE_REFRESH_TOKEN，"
+    "若长期从境外/机房 IP 运行，优先改到本机或国内节点执行")
+
+
+def is_auth_failure(http, body):
+    """判定「token 不被服务端认可」：HTTP 401、业务码 1001/20310，或返回里带未认证提示。
+    这类失败换设备号、重试都无意义，必须换凭证来源（Session Cookie）或重新登录。"""
+    if http == 401:
+        return True
+    if isinstance(body, dict):
+        if body.get("code") in (1001, 20310):
+            return True
+        meta = body.get("ResponseMetadata")
+        if isinstance(meta, dict):
+            err = meta.get("Error") or {}
+            if isinstance(err, dict):
+                if str(err.get("Code")) in ("1001", "20310", "040203"):
+                    return True
+                txt = " ".join([str(err.get("Message") or ""), str(err.get("StandardCode") or "")])
+                if "not logged in" in txt.lower() or "authenticate you" in txt.lower():
+                    return True
+        txt = str(body.get("message") or "").lower()
+        return ("not able to authenticate" in txt) or ("not logged in" in txt)
+    txt = str(body).lower()
+    return ("not able to authenticate" in txt) or ("not logged in" in txt)
+
+
+def pick_working_token(index, session, refresh_token, device_id, name):
+    """取一张「服务端真的认可」的 token：先 refreshToken 链，再 Session Cookie。
+    续期成功但 token 被拒（1001/401）时自动换下一种来源——这是旧版缺的一环：
+    以前只有「续期抛异常」才回退，续期成功却拿到废票时会死在那里。"""
+    rt = refresh_token or (load_token_cache().get(str(index), {}) or {}).get("refreshToken")
+    attempts = []
+    if rt:
+        attempts.append(("refreshToken", rt, None))
+    if session:
+        attempts.append(("Session", None, session))
+    if not attempts:
+        raise RuntimeError("没有可用的凭证：请配置 TRAE_REFRESH_TOKEN 或 TRAE_SESSION")
+
+    last_err = None
+    for kind, rtv, sess in attempts:
+        try:
+            if kind == "refreshToken":
+                token = renew_access_token(index, rtv, name)
+                print("[%s] 链式续期成功，JWT 长度=%d（refreshToken 已轮换回写缓存）"
+                      % (name, len(token)))
+            else:
+                token, token_result = get_token_full(sess)
+                print("[%s] 已用 Session Cookie 换取新 JWT，长度=%d" % (name, len(token)))
+                bootstrap_refresh_token(index, token_result, name)
+        except Exception as e:
+            print("[%s] %s 取票失败：%s" % (name, kind, e))
+            last_err = e
+            continue
+
+        pre = checkin_status(token, device_id)
+        code = pre["body"].get("code", -1)
+        if is_auth_failure(pre["http"], pre["body"]):
+            print("[%s] ⚠ %s 取到的 token 不被服务端认可（HTTP %s / code %s），换下一种凭证来源"
+                  % (name, kind, pre["http"], code))
+            last_err = RuntimeError(AUTH_ERROR_HINT)
+            continue
+        return token, pre
+
+    raise last_err or RuntimeError(AUTH_ERROR_HINT)
+
+
 def main():
     accounts = list(iter_accounts())
     if not accounts:
@@ -534,22 +604,8 @@ def main():
         name = "账号 %d" % index
         device_id = device_id or random_device_id()
         try:
-            # 取 token：优先链式续期（refreshToken 轮换链），失败回退 Session Cookie
-            token = None
-            if refresh_token or load_token_cache().get(str(index), {}).get("refreshToken"):
-                rt = refresh_token or load_token_cache().get(str(index), {}).get("refreshToken")
-                try:
-                    token = renew_access_token(index, rt, name)
-                    print("[%s] 链式续期成功，JWT 长度=%d（refreshToken 已轮换回写缓存）" % (name, len(token)))
-                except Exception as e:
-                    if session:
-                        print("[%s] 链式续期失败（%s），回退 Session Cookie 模式" % (name, e))
-                    else:
-                        raise
-            if token is None:
-                token, token_result = get_token_full(session)
-                print("[%s] 已换取新 JWT，长度=%d" % (name, len(token)))
-                bootstrap_refresh_token(index, token_result, name)
+            # 取 token：优先链式续期（refreshToken 轮换链），令牌被拒时自动回退 Session Cookie
+            token, pre = pick_working_token(index, session, refresh_token, device_id, name)
 
             # 拉取账号资料（昵称/脱敏手机号），失败降级为「账号 N」
             profile = get_user_info(token, session)
@@ -559,8 +615,7 @@ def main():
             else:
                 print("[%s] 未获取到昵称，沿用编号显示" % name)
 
-            # 签到前状态：若今日已签过，则本次运行不产生新积分（重跑场景如实记 0）
-            pre = checkin_status(token, device_id)
+            # 签到前状态（pick_working_token 已取过，直接复用，省一次请求）
             pre_code = pre["body"].get("code", -1)
             pre_checked = bool(pre["body"].get("checked_in", False))
             print("[%s] 签到前 status：code=%s, checked_in=%s" % (name, pre_code, pre_checked))
@@ -599,6 +654,8 @@ def main():
             ok = (result["http"] == 200) and (code == 0 or checked)
             if not ok:
                 reason = body.get("message") or ("HTTP %s" % result["http"])
+                if is_auth_failure(result["http"], body):
+                    reason += "｜" + AUTH_ERROR_HINT
                 print("[%s] 签到失败：%s" % (name, reason))
                 fail_names.append(name)
                 all_ok = False
