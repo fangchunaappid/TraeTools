@@ -122,6 +122,26 @@ def get_user_info(token: str, session: str):
         label += "（%s）" % mobile
     return label
 
+def jwt_uid(token: str) -> str:
+    """从 JWT 载荷里取账号 UID（GetUserInfo 需要会话 Cookie，Cookie 过期时用它兜底）。"""
+    try:
+        p = token.split(".")[1]
+        p += "=" * (-len(p) % 4)
+        return str(json.loads(base64.urlsafe_b64decode(p)).get("data", {}).get("id", ""))
+    except Exception:
+        return ""
+
+
+def account_label(index: int) -> str:
+    """账号自定义标签：TRAE_ACCOUNT_LABEL / TRAE_ACCOUNT_LABEL_N。
+    昵称接口拿不到时用它标识账号，飞书推送里一眼能看出是哪个号。"""
+    for key in ("TRAE_ACCOUNT_LABEL" + ("" if index == 1 else "_%d" % index), "TRAE_ACCOUNT_LABEL"):
+        v = os.environ.get(key, "").strip()
+        if v:
+            return v
+    return ""
+
+
 def checkin(token: str, device_id: str) -> dict:
     """执行每日签到（claim）。注意：claim 响应不含本次所得积分。"""
     status, text = _post("/trae/api/v2/ug/checkin_credits/claim", _auth_headers(token, device_id), "{}")
@@ -607,13 +627,19 @@ def main():
             # 取 token：优先链式续期（refreshToken 轮换链），令牌被拒时自动回退 Session Cookie
             token, pre = pick_working_token(index, session, refresh_token, device_id, name)
 
-            # 拉取账号资料（昵称/脱敏手机号），失败降级为「账号 N」
+            # 拉取账号资料（昵称/脱敏手机号）：该接口需要会话 Cookie，失败时用标签/UID 兜底
             profile = get_user_info(token, session)
             if profile:
                 name = "账号 %d·%s" % (index, profile)
                 print("[%s] 识别成功" % name)
             else:
-                print("[%s] 未获取到昵称，沿用编号显示" % name)
+                label = account_label(index)
+                uid = jwt_uid(token)
+                if label:
+                    name = "账号 %d·%s" % (index, label)
+                elif uid:
+                    name = "账号 %d·UID…%s" % (index, uid[-6:])
+                print("[%s] 未取到昵称，改用%s显示" % (name, "标签" if label else "UID 尾号"))
 
             # 签到前状态（pick_working_token 已取过，直接复用，省一次请求）
             pre_code = pre["body"].get("code", -1)
