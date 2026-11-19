@@ -4,7 +4,12 @@ on:
   schedule:
     # 北京时间每天 00:05（UTC 16:05）—— 兜底触发（GitHub 免费调度有延迟）
     - cron: "5 16 * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      force_push:
+        description: "强制推送飞书（忽略「今日已签不重复推送」）"
+        type: boolean
+        default: false
 
 # 串行锁：外部触发与 schedule 重叠时排队执行，后跑的会检测到「今日已签到」并不重复推送
 concurrency:
@@ -63,6 +68,7 @@ jobs:
 
       - name: Run checkin
         env:
+          TRAE_FORCE_PUSH: ${{ inputs.force_push }}
           TRAE_SESSION: ${{ secrets.TRAE_SESSION }}
           TRAE_DEVICE_ID: ${{ secrets.TRAE_DEVICE_ID }}
           TRAE_SESSION_2: ${{ secrets.TRAE_SESSION_2 }}
