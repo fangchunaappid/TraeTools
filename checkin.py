@@ -132,14 +132,15 @@ def jwt_uid(token: str) -> str:
         return ""
 
 
-def account_label(index: int) -> str:
-    """账号自定义标签：TRAE_ACCOUNT_LABEL / TRAE_ACCOUNT_LABEL_N。
-    昵称接口拿不到时用它标识账号，飞书推送里一眼能看出是哪个号。"""
+def account_label(index: int, token: str = "") -> str:
+    """账号显示标签，优先级：TRAE_ACCOUNT_LABEL(_N) > 内置 UID 映射 > 空。
+    昵称接口 GetUserInfo 需要会话 Cookie（约 14 天过期），取不到时靠这里标识账号，
+    保证飞书推送里一眼能看出是哪个号失败。"""
     for key in ("TRAE_ACCOUNT_LABEL" + ("" if index == 1 else "_%d" % index), "TRAE_ACCOUNT_LABEL"):
         v = os.environ.get(key, "").strip()
         if v:
             return v
-    return ""
+    return DEFAULT_ACCOUNT_LABELS.get(jwt_uid(token), "") if token else ""
 
 
 def checkin(token: str, device_id: str) -> dict:
@@ -280,6 +281,13 @@ EP_EXCHANGE_PROOF = "https://api.trae.cn/trae/api/v3/oauth/ExchangeToken"     # 
 CLIENT_ID_LEGACY = "en1oxy7wnw8j9n"          # 旧客户端 / 旧 token 用
 CLIENT_ID_IDE = os.getenv("TRAE_CLIENT_ID", "").strip() or "ono9krqynydwx5"   # 桌面端实测值
 IDE_VERSION = os.getenv("TRAE_IDE_VERSION", "").strip() or "3.4.20"
+
+# 账号显示标签（UID → 标签）。昵称接口依赖会话 Cookie，过期后靠这里分辨是哪个号。
+# 想换称呼直接改这里，或用 Secrets 的 TRAE_ACCOUNT_LABEL / _2 覆盖（无需改代码）。
+DEFAULT_ACCOUNT_LABELS = {
+    "727246465936345": "188******18",
+    "2504057258521561": "190******81",
+}
 TOKEN_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)) or ".", ".trae_token_cache.json")
 
 # ── 纯标准库 ECDSA P-256（新版 ExchangeToken 缺设备签名会报 20405）──
@@ -567,13 +575,20 @@ def is_auth_failure(http, body):
 
 
 def pick_working_token(index, session, refresh_token, device_id, name):
-    """取一张「服务端真的认可」的 token：先 refreshToken 链，再 Session Cookie。
-    续期成功但 token 被拒（1001/401）时自动换下一种来源——这是旧版缺的一环：
-    以前只有「续期抛异常」才回退，续期成功却拿到废票时会死在那里。"""
-    rt = refresh_token or (load_token_cache().get(str(index), {}) or {}).get("refreshToken")
-    attempts = []
-    if rt:
-        attempts.append(("refreshToken", rt, None))
+    """取一张「服务端真的认可」的 token，按可用性逐个试：
+    ① 缓存里的 refreshToken（链式轮换的最新值，优先——Secret 里的是初始种子，会被轮换掉）
+    ② Secret 里的 refreshToken（新导入的种子）
+    ③ Session Cookie
+    续期成功但 token 被拒（1001/401）时自动换下一种来源——旧版只有「续期抛异常」才回退，
+    续期成功却拿到废票时会死在那里。"""
+    cached = (load_token_cache().get(str(index), {}) or {}).get("refreshToken")
+    rts, seen = [], set()
+    for src, val in (("缓存", cached), ("Secret", refresh_token)):
+        if val and val not in seen:
+            seen.add(val)
+            rts.append((src, val))
+
+    attempts = [("refreshToken(%s)" % src, val, None) for src, val in rts]
     if session:
         attempts.append(("Session", None, session))
     if not attempts:
@@ -582,10 +597,10 @@ def pick_working_token(index, session, refresh_token, device_id, name):
     last_err = None
     for kind, rtv, sess in attempts:
         try:
-            if kind == "refreshToken":
+            if rtv:
                 token = renew_access_token(index, rtv, name)
-                print("[%s] 链式续期成功，JWT 长度=%d（refreshToken 已轮换回写缓存）"
-                      % (name, len(token)))
+                print("[%s] 链式续期成功（%s），JWT 长度=%d（refreshToken 已轮换回写缓存）"
+                      % (name, kind, len(token)))
             else:
                 token, token_result = get_token_full(sess)
                 print("[%s] 已用 Session Cookie 换取新 JWT，长度=%d" % (name, len(token)))
@@ -633,7 +648,7 @@ def main():
                 name = "账号 %d·%s" % (index, profile)
                 print("[%s] 识别成功" % name)
             else:
-                label = account_label(index)
+                label = account_label(index, token)
                 uid = jwt_uid(token)
                 if label:
                     name = "账号 %d·%s" % (index, label)
